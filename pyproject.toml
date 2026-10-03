@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mediatunes-svc"
+version = "1.2.0"
+requires-python = ">=3.11"
+authors = [{ name = "moongas.org", email = "moongas.org@gmail.com" }]
+maintainers = [{ name = "moongas.org", email = "moongas.org@gmail.com" }]
+description = "A BlackSheep (ASGI) web application for browsing and playing a media library."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = [
+  "moongas", 
+  "mediascan", 
+  "music",
+  "metadata",
+  "database",
+  "python",
+  "audio",
+  "media",
+  "tagging",
+  "file management",
+  "file organization"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+dependencies = [
+  "blacksheep>=2.6.3",
+  "uvicorn>=0.53.0",
+  "mediascan>=1.2.1",
+  "dataclass-wizard>=0.39.1",
+  "numpy>=2.2.6; python_version < '3.12'",
+  "numpy>=2.5.3; python_version >= '3.12'",
+  "pandas>=2.3.2; python_version < '3.12'",
+  "pandas>=3.0.5; python_version >= '3.12'",
+  "pyaml>=25.7.0",
+  "PyYAML>=6.0.3",
+  "SQLAlchemy>=2.0.46",
+]
+
+[project.scripts]
+mediatunes-svc = "run:main"
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.1.0",
+  "pytest>=9.1.1",
+  "pytest-asyncio>=1.4.0",
+]
+stats = [
+  "scikit-learn>=1.7.2",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep"
+Documentation = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep"
+Repository = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep.git"
+"Bug Tracker" = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep/issues"
+Changelog = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep/blob/master/CHANGELOG.md"
+
+[tool.setuptools]
+py-modules = ["run"]
+
+[tool.setuptools.package-data]
+app = ['py.typed', "templates/*", "static/**/*"]
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["app*", "mediatunes_svc*", "scripts"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+testpaths = [
+  "tests"
+]
+asyncio_mode = "auto"
+norecursedirs = [
+  ".env*",
+  ".venv*",
+  ".git",
+  ".tox",
+  "build",
+  "dist",
+  "env*",
+  "venv*",
+  "docs",
+  "__pycache__",
+  "scripts",
+  "out"
+]
+addopts = [
+  "--ignore=.git",
+  "--ignore=.tox",
+  "--ignore=build",
+  "--ignore=dist",
+  "--ignore=__pycache__",
+  "--ignore=scripts",
+  "--ignore=out"
+]
+
+[tool.ruff]
+# Set the maximum line length to match your GitHub Actions setup
+line-length = 127
+
+[tool.ruff.lint]
+# Enable Flake8 syntax/error equivalents (E9, F63, F7, F82)
+# "E" and "F" enable pycodestyle errors and Pyflakes
+select = ["E9", "F63", "F7", "F82"]
+
+# Enable McCabe complexity checking (equivalent to flake8 --max-complexity=10)
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+mypy_path = "typings"
+
+[[tool.mypy.overrides]]
+module = "*.pyi"
+ignore_errors = true

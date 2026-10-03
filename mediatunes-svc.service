@@ -1,0 +1,18 @@
+[Unit]
+# BlackSheep backend: serves the JSON API (/mediatunes/api/*) and media files
+# (/mediatunes/getfile/*). The web frontend single-page application lives
+# in a separate repo.
+Description=mediatunes-svc-python-blacksheep - JSON API backend for mediatunes-web app  Python BlackSheep implementation
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/var/www/moongas/moongas-collection-demo
+ExecStart=/var/www/moongas/moongas-collection-demo/.venv/bin/python moongas-mediatunes-svc-python-blacksheep/run.py mediatunes-config.yml
+Restart=always
+RestartSec=30s
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
