@@ -105,6 +105,35 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             app.logger.info("Loading 'artist' table from database...")
             artists_df = pd.read_sql_query("SELECT * FROM artist", conn)
 
+            if "album" in table_names:
+                app.logger.info("Loading 'album' table from database...")
+                # Keep one row per related track so combined filters match the same track.
+                albums_df = pd.read_sql_query(
+                    """
+                    SELECT album.*,
+                        COALESCE(mediafile.artist, '') AS artist,
+                        COALESCE(mediafile.albumartist, '') AS albumartist,
+                        COALESCE(mediafile.title, '') AS title,
+                        COALESCE(mediafile.genre, '') AS genre,
+                        COALESCE(artist.countrycode, '') AS countrycode,
+                        COALESCE(artist.regioncode, '') AS regioncode,
+                        COALESCE(artist.city, '') AS city,
+                        COALESCE(artist.languagecode, '') AS languagecode
+                    FROM album
+                    LEFT JOIN mediafile ON mediafile.albumpath = album.path
+                    LEFT JOIN artist ON mediafile.artistpath = artist.path
+                    """,
+                    conn,
+                )
+            else:
+                app.logger.warning(
+                    "Database has no 'album' table; album metadata requests will return 404. "
+                    "Rescan with a current mediascan to enable album metadata."
+                )
+                albums_df = pd.DataFrame(
+                    columns=["id", "path", "name", "year", "explicitcover"]
+                )
+
             app.logger.info("Joining media files and artists...")
             joined_df = pd.read_sql_query(
                 "SELECT * FROM mediafile LEFT JOIN artist ON mediafile.artistpath = artist.path",
@@ -112,9 +141,10 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             )
 
             app.logger.info(
-                "Successfully loaded %d media files and %d artists from database.",
+                "Successfully loaded %d media files, %d artists and %d albums from database.",
                 len(files_df),
                 len(artists_df),
+                albums_df["path"].nunique(),
             )
     except SQLAlchemyError as ex:
         app.logger.error(
@@ -138,6 +168,7 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             engine=engine,
             db_files=files_df,
             db_artists=artists_df,
+            db_albums=albums_df,
             db_files_artists_joined=joined_df,
             static_folder=static_folder,
             logger=app.logger,

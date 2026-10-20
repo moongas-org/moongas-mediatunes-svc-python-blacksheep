@@ -19,11 +19,13 @@ from blacksheep.exceptions import NotFound
 from app.types.arg_types import args_dict_to_str
 from app.utils.app_utils import (
     get_config,
+    get_mediascan_db_albums,
     get_mediascan_db_artists,
     get_mediascan_db_files_artists_joined,
 )
 from app.utils.media_files_utils import (
     MediaFile,
+    get_album,
     get_albums,
     get_artist,
     get_artist_counts,
@@ -40,17 +42,27 @@ from app.utils.media_files_utils import (
 from app.utils.request_args_utils import get_request_args
 
 
+class AlbumRow(NamedTuple):
+    """Typed view of get_album(); SQLite returns explicitcover as a 0/1 integer."""
+
+    id: int
+    path: str
+    name: str
+    year: int
+    explicitcover: int
+
+
 class ArtistRow(NamedTuple):
     """
     Typed view of an artist row, as returned by get_artist()
     (a pandas namedtuple built from the 'artist' table).
     """
 
-    name: Any
-    countrycode: Any
-    regioncode: Any
-    city: Any
-    languagecode: Any
+    name: str
+    countrycode: str
+    regioncode: str
+    city: str
+    languagecode: str
 
 
 def _artist_geo_counts(app: Application, kind: str) -> List[Dict[str, Any]]:
@@ -151,8 +163,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         app.logger.debug("api/albums args=%s", args_dict_to_str(args))
         album_list = get_albums(
             app,
-            get_mediascan_db_files_artists_joined(app),
-            get_mediascan_db_artists(app),
+            get_mediascan_db_albums(app),
             args,
         )
         return json(
@@ -166,6 +177,34 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
                     }
                     for album in album_list
                 ]
+            }
+        )
+
+    @app.router.get(url_prefix + "/album")
+    async def album(request: Request) -> Response:
+        args = get_request_args(request)
+        app.logger.debug("api/album args=%s", args_dict_to_str(args))
+        result = cast(
+            AlbumRow | None,
+            get_album(
+                app,
+                get_mediascan_db_files_artists_joined(app),
+                get_mediascan_db_albums(app),
+                args,
+            ),
+        )
+        if result is None:
+            app.logger.error("Album not found for request arguments: %s", args)
+            raise NotFound()
+        return json(
+            {
+                "album": {
+                    "id": int(result.id),
+                    "path": str(result.path),
+                    "name": str(result.name),
+                    "year": int(result.year),
+                    "explicitCover": bool(result.explicitcover),
+                }
             }
         )
 

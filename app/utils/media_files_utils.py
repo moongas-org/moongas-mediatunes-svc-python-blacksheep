@@ -49,7 +49,7 @@ from app.types.arg_types import (
 )
 from app.types.album_info import AlbumInfo
 from app.utils.string_utils import str_in_list_ignore_case
-from app.utils.app_utils import get_config, get_state
+from app.utils.app_utils import get_config, get_mediascan_db_albums, get_state
 
 NameAndUrl = Tuple[str, str]
 ArtistGeoCounts = Dict[NameAndUrl, int]
@@ -110,6 +110,11 @@ def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.Da
     Note: This is now meant to be used with joined dataframe containing both file and artist data
     """
     app.logger.info("filter_files args=%s", args_dict_to_str(args))
+    if ArgTypes.Boolean.ExplicitCover in args:
+        albums = get_mediascan_db_albums(app)
+        explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
+        album_paths = albums.loc[albums["explicitcover"] == explicit_cover, "path"]
+        files = files[files["albumpath"].isin(album_paths)]
     results: List[Any] = []
     for row in files.itertuples():
         # ArgTypeScalarInt:
@@ -226,6 +231,46 @@ def filter_artists(
             # app.logger.info("filter_artists args=%s", args_dict_to_str(args))
             results.append(row)
     return pd.DataFrame(results)
+
+
+def filter_albums(app: Application, albums: pd.DataFrame, args: ArgsDict) -> pd.DataFrame:
+    """Filter enriched album rows using album metadata and related track attributes."""
+    app.logger.info("filter_albums args=%s", args_dict_to_str(args))
+    filtered = albums
+    if filtered.empty:
+        return filtered
+    for arg_type, column in (
+        (ArgTypes.List.Str.Album, "name"),
+        (ArgTypes.List.Str.Year, "year"),
+        (ArgTypes.List.Str.Artist, "artist"),
+        (ArgTypes.List.Str.AlbumArtist, "albumartist"),
+        (ArgTypes.List.Str.Title, "title"),
+        (ArgTypes.List.Str.Genre, "genre"),
+        (ArgTypes.List.Str.CountryCode, "countrycode"),
+        (ArgTypes.List.Str.RegionCode, "regioncode"),
+        (ArgTypes.List.Str.City, "city"),
+        (ArgTypes.List.Str.LanguageCode, "languagecode"),
+    ):
+        if filtered.empty:
+            return filtered
+        if arg_type in args:
+            values = cast(ArgValueListStr, args[arg_type])
+            if values:
+                filtered = filtered[
+                    filtered[column].map(
+                        lambda value: str_in_list_ignore_case(str(value), values)
+                    )
+                ]
+    if ArgTypes.Scalar.Int.MinYear in args:
+        minimum = cast(ArgValueScalarInt, args[ArgTypes.Scalar.Int.MinYear])
+        filtered = filtered[filtered["year"] >= minimum]
+    if ArgTypes.Scalar.Int.MaxYear in args:
+        maximum = cast(ArgValueScalarInt, args[ArgTypes.Scalar.Int.MaxYear])
+        filtered = filtered[filtered["year"] <= maximum]
+    if ArgTypes.Boolean.ExplicitCover in args:
+        explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
+        filtered = filtered[filtered["explicitcover"] == explicit_cover]
+    return filtered
 
 
 def get_files_list(
@@ -547,6 +592,27 @@ def get_artist(
     return None
 
 
+def get_album(
+    app: Application, files: pd.DataFrame, albums: pd.DataFrame, args: ArgsDict
+) -> tuple[Any, ...] | None:
+    """Return metadata for the first album with tracks matching the filters."""
+    if albums.empty:
+        return None
+    files_filtered = filter_files(app, files, args)
+    if files_filtered.empty:
+        return None
+    album_paths = {str(row.albumpath) for row in files_filtered.itertuples()}
+    albums_filtered = albums[albums["path"].isin(album_paths)]
+    if ArgTypes.Boolean.ExplicitCover in args:
+        explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
+        albums_filtered = albums_filtered[
+            albums_filtered["explicitcover"] == explicit_cover
+        ]
+    if not albums_filtered.empty:
+        return next(albums_filtered.itertuples(name="album", index=False))
+    return None
+
+
 def get_word_cloud_data_genres(files: pd.DataFrame) -> List[Dict[str, str]]:
     ret: List[Dict[str, str]] = []
     genres = get_genres(df_to_mediafile_list(files))
@@ -567,6 +633,10 @@ def get_word_cloud_data_artists(
 
 def get_cover_path(config: MediatunesServiceConfig, file: MediaFile) -> Path:
     dir_path = Path(file.path.replace(os.path.basename(file.path), ""))
+    return get_album_cover_path(config, dir_path)
+
+
+def get_album_cover_path(config: MediatunesServiceConfig, dir_path: Path) -> Path:
     if config.album_covers_path != config.playback_methods.local.media_path:
         # e.g. "/data/Music/Logic/Orville%20[2022]/cover.jpg"
         # config.playback_methods.local.media_path = "/data/Music/"
@@ -581,31 +651,24 @@ def get_cover_path(config: MediatunesServiceConfig, file: MediaFile) -> Path:
 
 def get_albums(
     app: Application,
-    files: pd.DataFrame,
-    artists: pd.DataFrame,
+    albums: pd.DataFrame,
     args: ArgsDict,
 ) -> List[AlbumInfo]:
-    """Returns a list of one AlbumInfo per unique album"""
-    album_set: Set[AlbumInfo] = set()  # type: ignore
+    """Return one AlbumInfo per album path, using album-table metadata."""
     config = get_config(app)
-    files_filtered = filter_files(app, files, args)
-    for f in files_filtered.itertuples():
-        # try to go with albumartist first, in order to better group files
-        # in the same album together, but fallback to artist as key if
-        # albumartist is not set
-        artist = str(f.albumartist)
-        if not len(artist):
-            artist = str(f.artist)
-        album_set.add(
+    albums_filtered = filter_albums(app, albums, args).drop_duplicates(subset=["path"])
+    ret: List[AlbumInfo] = []
+    for album in albums_filtered.itertuples():
+        artist = str(album.albumartist) or str(album.artist)
+        ret.append(
             AlbumInfo(
                 artist,
-                str(f.album),
-                int(float(str(f.year))),
-                get_cover_path(config, row_to_mediafile(f)),
+                str(album.name),
+                int(str(album.year)),
+                get_album_cover_path(config, Path(str(album.path))),
             )
         )
 
-    ret: List[AlbumInfo] = list(album_set)
     sort = ArgValues.Scalar.Enum.Sort.Random
     if ArgTypes.Scalar.Enum.Sort in args:
         sort = args[ArgTypes.Scalar.Enum.Sort]

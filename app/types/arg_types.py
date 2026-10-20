@@ -6,6 +6,10 @@ class ArgType(StrEnum):
     pass
 
 
+class ArgTypeBoolean(ArgType):
+    ExplicitCover = "explicitCover"
+
+
 class ArgTypeScalarInt(ArgType):
     MinYear = "minYear"
     MaxYear = "maxYear"
@@ -38,6 +42,7 @@ class ArgTypeList:
 
 
 class ArgTypes:
+    Boolean = ArgTypeBoolean
     List = ArgTypeList
     Scalar = ArgTypeScalar
 
@@ -46,10 +51,15 @@ class ArgTypeUtil:
     @classmethod
     def is_scalar(cls, arg_type: ArgType) -> bool:
         return arg_type in (
+            ArgTypes.Boolean.ExplicitCover,
             ArgTypes.Scalar.Int.MinYear,
             ArgTypes.Scalar.Int.MaxYear,
             ArgTypes.Scalar.Enum.Sort,
         )
+
+    @classmethod
+    def is_boolean(cls, arg_type: ArgType) -> bool:
+        return isinstance(arg_type, ArgTypeBoolean)
 
     @classmethod
     def is_integer(cls, arg_type: ArgType) -> bool:
@@ -60,6 +70,7 @@ class ArgTypeUtil:
 
 
 ArgValueScalarInt = int
+ArgValueBoolean = bool
 ArgValueListStr = List[str]
 
 
@@ -84,7 +95,7 @@ class ArgValues:
     Scalar = ArgValuesScalar
 
 
-ArgValue = Union[ArgValueScalarInt, ArgValueListStr, ArgValueScalarEnumSort]
+ArgValue = Union[ArgValueBoolean, ArgValueScalarInt, ArgValueListStr, ArgValueScalarEnumSort]
 ArgsDict = Dict[ArgType, ArgValue]
 
 

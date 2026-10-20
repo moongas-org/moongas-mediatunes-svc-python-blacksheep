@@ -59,7 +59,47 @@ python run.py mediatunes-config.yml
 
 ## Web frontend
 
-The web UI single-page application (Vue 3 + TypeScript, built with Vite) has moved to a separate repo. It consumes this backend's JSON API (`app/api/` — `/api/config`, `/api/albums`, `/api/tracks`, `/api/artists`, `/api/artist`, `/api/genres`, `/api/artist-geo/<kind>`, `/api/wordcloud/*`, `/api/random-track`) and the media files via `/getfile/*`.
+The web UI single-page application (Vue 3 + TypeScript, built with Vite) has moved to a separate repo. It consumes this backend's JSON API (`app/api/` — `/api/config`, `/api/albums`, `/api/album`, `/api/tracks`, `/api/artists`, `/api/artist`, `/api/genres`, `/api/artist-geo/<kind>`, `/api/wordcloud/*`, `/api/random-track`) and the media files via `/getfile/*`.
+
+### Album metadata
+
+`GET /api/album?artist=Artist%20One&album=Album&year=2000` returns metadata
+from the scanner's `album` table:
+
+```json
+{"album": {"id": 1, "path": "/data/Music/A/Artist One/Album [2000]", "name": "Album", "year": 2000, "explicitCover": false}}
+```
+
+Like `/api/artist`, this returns the first match, or HTTP 404 if none is found.
+It accepts the existing track filters (including `artist`, `albumartist`, `album`,
+`year`, and geographic filters), then matches `mediafile.albumpath` to `album.path`.
+The returned name, year, and explicit-cover flag come from album metadata, which
+can differ from track tags.
+
+`GET /api/albums` lists albums from the `album` table, preserving the
+`artist`, `album`, `year`, and `coverPath` response fields. The album name and
+year (including `album`, `year`, `minYear`, and `maxYear` filters) now use album
+metadata rather than track tags. Related tracks and artist data supply the
+existing artist, album-artist, title, genre, and geographic filters. Combined
+track filters must match the same track. Each album path appears once; artist
+display prefers the matching track's album artist, then its track artist.
+Albums without related tracks are included with an empty artist name.
+Cover paths come from the album directory and respect the configured cover root.
+Sorting and the album-cover result limit continue to apply.
+
+The `/api/albums`, `/api/album`, `/api/tracks`, and `/api/random-track` endpoints
+accept `explicitCover=true` or
+`explicitCover=false`, also accepting `1` and `0` (case-insensitive).
+Omitting the argument includes either value; invalid values return HTTP 400.
+For example: `/api/albums?explicitCover=false&minYear=1990`.
+Track selection matches `mediafile.albumpath` to album metadata paths and applies
+this filter before selecting a random track. With an explicit-cover filter,
+tracks without matching album metadata are excluded; without the filter, their
+existing behavior is unchanged. No matching random-track candidates returns HTTP 404.
+
+Older databases without an `album` table remain supported; `/api/album` returns
+404 and `/api/albums` returns an empty list until the library is rescanned with
+a current scanner. The `/api` prefix is configurable via `serverConfig.urlPrefix`.
 
 ## Features
 

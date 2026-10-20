@@ -3,8 +3,8 @@ mediascanDatabaseFilePath: sqlite:///mediascan.db
 albumCoversPath: /var/www/html/Covers/
 ageVerification: true
 limitBandwidth: true
-maxResults: 50000
-maxResultsAlbumCovers: 500
+maxResults: 10000
+maxResultsAlbumCovers: 100
 serverConfig:
   host: 0.0.0.0
   port: 5000

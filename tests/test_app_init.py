@@ -6,7 +6,11 @@ from blacksheep import Application
 
 from app import create_app
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
-from app.utils.app_utils import get_mediascan_db_artists, get_mediascan_db_files
+from app.utils.app_utils import (
+    get_mediascan_db_albums,
+    get_mediascan_db_artists,
+    get_mediascan_db_files,
+)
 
 
 def test_create_app_missing_database_file(tmp_path: Path):
@@ -65,3 +69,4 @@ def test_create_app_valid_database(tmp_path: Path):
     artists_df = get_mediascan_db_artists(app)
     assert len(files_df) == 1
     assert len(artists_df) == 1
+    assert get_mediascan_db_albums(app).empty
