@@ -129,6 +129,7 @@ async def test_api_albums(app: Application):
     assert data["albums"][0]["year"] == 2001
     assert data["albums"][0]["artist"] == "Artist One"
     assert data["albums"][0]["coverPath"].endswith("/Artist One/Album [2000]/cover.jpg")
+    assert data["albums"][0]["explicitCover"] is True
 
 
 @pytest.mark.parametrize(
@@ -141,7 +142,9 @@ async def test_api_albums(app: Application):
         ("explicitCover=FALSE", 0),
         ("explicitCover=0", 0),
         ("album[]=album%20metadata%20name&year[]=2001", 1),
-        ("album=Album", 0),
+        ("album=Album", 1),
+        ("album=metadata", 1),
+        ("album=Missing", 0),
         ("year=2000", 0),
         ("minYear=2001&maxYear=2001", 1),
         ("minYear=2002", 0),
@@ -150,6 +153,7 @@ async def test_api_albums(app: Application):
         ("countryCode=US&regionCode=US-AL&city=Huntsville&languageCode=en", 1),
         ("genre=Jazz", 0),
         ("artist=Nobody", 0),
+        ("artist=one&artist=nobody", 1),
         ("countryCode=CA", 0),
         ("artist=Nobody&genre=Rock&minYear=2000", 0),
         ("explicitCover=true&genre=Rock&year=2001", 1),
@@ -307,6 +311,7 @@ async def test_api_albums_distinct_paths_and_no_tracks(multi_album_app: Applicat
     albums = (await resp.json())["albums"]
     assert [album["year"] for album in albums] == [2001, 2001, 1990]
     assert len({album["coverPath"] for album in albums}) == 3
+    assert [album["explicitCover"] for album in albums] == [True, False, False]
     assert albums[0]["artist"] == albums[1]["artist"] == "Artist One"
     assert albums[2]["artist"] == ""
     resp = await client.get("/api/albums?explicitCover=false")

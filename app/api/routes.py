@@ -174,6 +174,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
                         "album": album.album,
                         "year": album.year,
                         "coverPath": str(album.cover_path),
+                        "explicitCover": album.explicit_cover,
                     }
                     for album in album_list
                 ]

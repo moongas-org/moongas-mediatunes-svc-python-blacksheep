@@ -48,7 +48,7 @@ from app.types.arg_types import (
     ArgValueScalarInt,
 )
 from app.types.album_info import AlbumInfo
-from app.utils.string_utils import str_in_list_ignore_case
+from app.utils.string_utils import any_substr_in_str_ignore_case
 from app.utils.app_utils import get_config, get_mediascan_db_albums, get_state
 
 NameAndUrl = Tuple[str, str]
@@ -169,7 +169,7 @@ def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.Da
                 app.logger.debug(
                     "filtering based on %s[] arg = [%s]", arg_type, arg_value_list
                 )
-                if len(arg_value_list) and not str_in_list_ignore_case(
+                if len(arg_value_list) and not any_substr_in_str_ignore_case(
                     file_value, arg_value_list
                 ):
                     app.logger.debug(
@@ -214,7 +214,7 @@ def filter_artists(
                     arg_type,
                     arg_value_list,
                 )
-                if len(arg_value_list) and not str_in_list_ignore_case(
+                if len(arg_value_list) and not any_substr_in_str_ignore_case(
                     file_value, arg_value_list
                 ):
                     app.logger.debug(
@@ -258,7 +258,7 @@ def filter_albums(app: Application, albums: pd.DataFrame, args: ArgsDict) -> pd.
             if values:
                 filtered = filtered[
                     filtered[column].map(
-                        lambda value: str_in_list_ignore_case(str(value), values)
+                        lambda value: any_substr_in_str_ignore_case(str(value), values)
                     )
                 ]
     if ArgTypes.Scalar.Int.MinYear in args:
@@ -666,6 +666,7 @@ def get_albums(
                 str(album.name),
                 int(str(album.year)),
                 get_album_cover_path(config, Path(str(album.path))),
+                bool(album.explicitcover),
             )
         )
 

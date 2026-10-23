@@ -101,6 +101,12 @@ Older databases without an `album` table remain supported; `/api/album` returns
 404 and `/api/albums` returns an empty list until the library is rescanned with
 a current scanner. The `/api` prefix is configurable via `serverConfig.urlPrefix`.
 
+String list filters (`artist`, `albumartist`, `album`, `title`, `genre`, `year`,
+`countryCode`, `regionCode`, `city`, and `languageCode`) match case-insensitive
+substrings. Repeating a filter matches any of its values, so
+`artist=wu-tang&artist=dr.+dre` matches the artist "Wu-Tang Clan". For an exact
+year, use the same `minYear` and `maxYear` value.
+
 ## Features
 
 - Simple minimalist web interface
