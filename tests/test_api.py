@@ -14,7 +14,8 @@ from blacksheep.testing import TestClient
 from app import create_app
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.types.config.server_config import ServerConfig
-from app.utils.app_utils import get_config
+from app.utils.app_utils import get_config, get_mediascan_db_files_artists_joined
+from app.utils.media_files_utils import MediaFile
 
 
 @pytest.fixture(autouse=True)
@@ -109,6 +110,7 @@ async def test_api_tracks(app: Application):
     assert len(data["files"]) == 1
     assert data["files"][0]["title"] == "Track 1"
     assert data["files"][0]["genre"] == "Rock"
+    assert data["album"]["name"] == "Album Metadata Name"
 
 
 async def test_api_tracks_filtered(app: Application):
@@ -117,6 +119,103 @@ async def test_api_tracks_filtered(app: Application):
     assert resp.status == 200
     data = await resp.json()
     assert len(data["files"]) == 0
+    assert data["album"] is None
+
+
+SINGLE_ALBUM_JSON: dict[str, object] = {
+    "id": 1,
+    "path": "/data/Music/A/Artist One/Album [2000]",
+    "name": "Album Metadata Name",
+    "year": 2001,
+    "explicitCover": True,
+}
+OTHER_ALBUM_JSON: dict[str, object] = {
+    "id": 2,
+    "path": "/data/Music/A/Artist One/Other [2000]",
+    "name": "Album Metadata Name",
+    "year": 2001,
+    "explicitCover": False,
+}
+
+
+@pytest.mark.parametrize(
+    "query, expected_album",
+    [
+        ("", None),
+        ("genre=Jazz", None),
+        ("album=Album", SINGLE_ALBUM_JSON),
+        ("title=Track%201", SINGLE_ALBUM_JSON),
+        ("title=Other", OTHER_ALBUM_JSON),
+        ("artist=Missing", None),
+    ],
+)
+async def test_api_tracks_single_album(
+    multi_album_app: Application, query: str, expected_album: dict[str, object] | None
+):
+    response = await TestClient(multi_album_app).get("/api/tracks?" + query)
+    assert response.status == 200
+    assert (await response.json())["album"] == expected_album
+
+
+async def test_api_tracks_single_album_without_metadata(db_file: Path):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("UPDATE album SET path = '/other/album'")
+    application = create_app(
+        MediatunesServiceConfig(
+            mediascan_database_file_path=f"sqlite:///{db_file}",
+            server_config=ServerConfig(url_prefix="/api"),
+        )
+    )
+    await application.start()
+    response = await TestClient(application).get("/api/tracks")
+    assert response.status == 200
+    data = await response.json()
+    assert len(data["files"]) == 1
+    assert data["album"] is None
+
+
+async def test_api_tracks_single_album_ignores_max_results(multi_album_app: Application):
+    get_config(multi_album_app).max_results = 1
+    response = await TestClient(multi_album_app).get("/api/tracks?genre=Jazz")
+    assert response.status == 200
+    data = await response.json()
+    assert len(data["files"]) == 1
+    assert data["album"] is None
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3, 4, 0, -1])
+@pytest.mark.parametrize(
+    "query, matching_count",
+    [
+        ("", 3),
+        ("sort=year", 3),
+        ("artist=Artist%20One", 2),
+        ("album=Album", 2),
+        ("genre=Jazz", 2),
+        ("artist=Missing", 0),
+    ],
+)
+async def test_api_tracks_max_results(
+    multi_album_app: Application, limit: int, query: str, matching_count: int
+):
+    get_config(multi_album_app).max_results = limit
+    response = await TestClient(multi_album_app).get("/api/tracks?" + query)
+    assert response.status == 200
+    files = (await response.json())["files"]
+    expected_count = min(limit, matching_count) if limit > 0 else matching_count
+    assert len(files) == expected_count
+
+
+async def test_api_tracks_max_results_after_sorting(multi_album_app: Application):
+    files = get_mediascan_db_files_artists_joined(multi_album_app)
+    files["year"] = files["title"].map(
+        {"Track 1": "1990", "Other Track": "2010", "Second Track": "2000"}
+    )
+    get_config(multi_album_app).max_results = 1
+    response = await TestClient(multi_album_app).get("/api/tracks?sort=year")
+    assert response.status == 200
+    tracks = (await response.json())["files"]
+    assert [track["title"] for track in tracks] == ["Other Track"]
 
 
 async def test_api_albums(app: Application):
@@ -437,8 +536,8 @@ async def test_api_random_track(app: Application):
         ("explicitCover=false", {"Other Track"}),
         ("explicitCover=TRUE&genre=Jazz", {"Second Track"}),
         ("explicitCover=0&genre=Jazz", {"Other Track"}),
-        ("explicitCover=false&genre=Rock", set()),
-        ("explicitCover=true&artist=Missing", set()),
+        ("explicitCover=false&genre=Rock", set[str]()),
+        ("explicitCover=true&artist=Missing", set[str]()),
     ],
 )
 async def test_api_track_selection_explicit_cover(
@@ -447,7 +546,10 @@ async def test_api_track_selection_explicit_cover(
     query: str,
     expected_titles: set[str],
 ):
-    monkeypatch.setattr("app.api.routes.random.choice", lambda files: files[0])
+    def choose_first(files: list[MediaFile]) -> MediaFile:
+        return files[0]
+
+    monkeypatch.setattr("app.api.routes.random.choice", choose_first)
     client = TestClient(multi_album_app)
     response = await client.get("/api/tracks?" + query)
     assert response.status == 200

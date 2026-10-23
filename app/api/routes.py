@@ -52,6 +52,16 @@ class AlbumRow(NamedTuple):
     explicitcover: int
 
 
+def _album_json(album: AlbumRow) -> Dict[str, Any]:
+    return {
+        "id": int(album.id),
+        "path": str(album.path),
+        "name": str(album.name),
+        "year": int(album.year),
+        "explicitCover": bool(album.explicitcover),
+    }
+
+
 class ArtistRow(NamedTuple):
     """
     Typed view of an artist row, as returned by get_artist()
@@ -197,23 +207,13 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         if result is None:
             app.logger.error("Album not found for request arguments: %s", args)
             raise NotFound()
-        return json(
-            {
-                "album": {
-                    "id": int(result.id),
-                    "path": str(result.path),
-                    "name": str(result.name),
-                    "year": int(result.year),
-                    "explicitCover": bool(result.explicitcover),
-                }
-            }
-        )
+        return json({"album": _album_json(result)})
 
     @app.router.get(url_prefix + "/tracks")
     async def tracks(request: Request) -> Response:
         args = get_request_args(request)
         app.logger.debug("api/tracks args=%s", args_dict_to_str(args))
-        track_list: List[MediaFile] = get_tracks(
+        track_list, album_row = get_tracks(
             app,
             get_mediascan_db_files_artists_joined(app),
             get_mediascan_db_artists(app),
@@ -226,6 +226,11 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
             {
                 "files": [asdict(t) for t in track_list],
                 "coverPath": str(cover_path),
+                "album": (
+                    _album_json(cast(AlbumRow, album_row))
+                    if album_row is not None
+                    else None
+                ),
             }
         )
 

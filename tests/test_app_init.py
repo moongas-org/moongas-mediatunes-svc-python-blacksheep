@@ -2,6 +2,7 @@ from pathlib import Path
 import sqlite3
 
 import pytest
+import pandas as pd
 from blacksheep import Application
 
 from app import create_app
@@ -70,3 +71,6 @@ def test_create_app_valid_database(tmp_path: Path):
     assert len(files_df) == 1
     assert len(artists_df) == 1
     assert get_mediascan_db_albums(app).empty
+    # String columns are loaded as object dtype for fast row access under pandas 3.
+    assert not any(isinstance(dtype, pd.StringDtype) for dtype in files_df.dtypes)
+    assert not any(isinstance(dtype, pd.StringDtype) for dtype in artists_df.dtypes)

@@ -87,6 +87,18 @@ Albums without related tracks are included with an empty artist name.
 Cover paths come from the album directory and respect the configured cover root.
 Sorting and the album-cover result limit continue to apply.
 
+`GET /api/tracks` applies `maxResults` after filtering and sorting, including
+requests filtered by artist or album. Zero or negative values mean unlimited
+results, as with `maxResultsAlbumCovers`. This limit does not restrict the
+candidates used by `/api/random-track`.
+
+The `/api/tracks` response also includes an `album` field. When every matching
+track (before the `maxResults` limit) belongs to the same album directory, it
+contains that album's metadata in the same shape as `/api/album`
+(`id`, `path`, `name`, `year`, `explicitCover`); otherwise it is `null`. At most
+one album is looked up per request, so the tracks page does not need a separate
+`/api/album` call to decide whether to show cover art.
+
 The `/api/albums`, `/api/album`, `/api/tracks`, and `/api/random-track` endpoints
 accept `explicitCover=true` or
 `explicitCover=false`, also accepting `1` and `0` (case-insensitive).

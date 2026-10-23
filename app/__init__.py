@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 import logging
 import os
 from pathlib import Path
@@ -13,6 +13,15 @@ from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.utils.app_utils import AppState
 
 logger = logging.getLogger(__name__)
+
+
+def strings_as_object(df: pd.DataFrame) -> pd.DataFrame:
+    # pandas 3 infers StringDtype columns, whose per-cell access makes row iteration ~4x slower.
+    for i, dtype in enumerate(df.dtypes):
+        if isinstance(dtype, pd.StringDtype):
+            # Pass a Series: an object ndarray would be re-inferred as StringDtype.
+            df.isetitem(i, cast(Any, df.iloc[:, i].astype(object)))
+    return df
 
 
 def register_routes(app: Application, url_prefix: str = "") -> None:
@@ -100,10 +109,14 @@ def create_app(config: MediatunesServiceConfig) -> Application:
     try:
         with engine.connect() as conn:
             app.logger.info("Loading 'mediafile' table from database...")
-            files_df = pd.read_sql_query("SELECT * FROM mediafile", conn)
+            files_df = strings_as_object(
+                pd.read_sql_query("SELECT * FROM mediafile", conn)
+            )
 
             app.logger.info("Loading 'artist' table from database...")
-            artists_df = pd.read_sql_query("SELECT * FROM artist", conn)
+            artists_df = strings_as_object(
+                pd.read_sql_query("SELECT * FROM artist", conn)
+            )
 
             if "album" in table_names:
                 app.logger.info("Loading 'album' table from database...")
@@ -125,6 +138,7 @@ def create_app(config: MediatunesServiceConfig) -> Application:
                     """,
                     conn,
                 )
+                albums_df = strings_as_object(albums_df)
             else:
                 app.logger.warning(
                     "Database has no 'album' table; album metadata requests will return 404. "
@@ -135,9 +149,11 @@ def create_app(config: MediatunesServiceConfig) -> Application:
                 )
 
             app.logger.info("Joining media files and artists...")
-            joined_df = pd.read_sql_query(
-                "SELECT * FROM mediafile LEFT JOIN artist ON mediafile.artistpath = artist.path",
-                conn,
+            joined_df = strings_as_object(
+                pd.read_sql_query(
+                    "SELECT * FROM mediafile LEFT JOIN artist ON mediafile.artistpath = artist.path",
+                    conn,
+                )
             )
 
             app.logger.info(

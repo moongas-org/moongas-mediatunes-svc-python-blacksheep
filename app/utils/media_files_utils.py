@@ -1,7 +1,8 @@
 import json
+import logging
 import os
 import random
-from typing import cast, Any, Dict, List, Set, Tuple
+from typing import cast, Any, Dict, List, NamedTuple, Set, Tuple
 from urllib.parse import quote_plus  # type: ignore
 from pathlib import Path
 import pandas as pd
@@ -105,6 +106,29 @@ def file_and_artist_paths_match(file_path: str, artist_path: str):
     return artist_path.startswith(file_artist_path)
 
 
+FILE_FILTER_COLUMNS: Tuple[Tuple[ArgType, str], ...] = (
+    (ArgTypes.List.Str.Artist, "artist"),
+    (ArgTypes.List.Str.AlbumArtist, "albumartist"),
+    (ArgTypes.List.Str.Album, "album"),
+    (ArgTypes.List.Str.Genre, "genre"),
+    (ArgTypes.List.Str.Title, "title"),
+    (ArgTypes.List.Str.Year, "year"),
+    (ArgTypes.List.Str.CountryCode, "countrycode"),
+    (ArgTypes.List.Str.RegionCode, "regioncode"),
+    (ArgTypes.List.Str.City, "city"),
+    (ArgTypes.List.Str.LanguageCode, "languagecode"),
+)
+
+
+def contains_any_ignore_case(column: "pd.Series[Any]", substrings: List[str]) -> "pd.Series[bool]":
+    """Vectorized any_substr_in_str_ignore_case; str() keeps missing values as "nan"."""
+    lowered = column.map(str).str.lower()
+    matches = pd.Series(False, index=column.index)
+    for substring in substrings:
+        matches |= lowered.str.contains(substring.lower(), regex=False)
+    return matches
+
+
 def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.DataFrame:
     """
     Note: This is now meant to be used with joined dataframe containing both file and artist data
@@ -115,75 +139,22 @@ def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.Da
         explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
         album_paths = albums.loc[albums["explicitcover"] == explicit_cover, "path"]
         files = files[files["albumpath"].isin(album_paths)]
-    results: List[Any] = []
-    for row in files.itertuples():
-        # ArgTypeScalarInt:
-        arg_type = ArgTypes.Scalar.Int.MinYear
-        if arg_type in args:
-            arg_value = cast(ArgValueScalarInt, args[arg_type])
-            if arg_value and int(float(str(row.year))) < arg_value:
-                app.logger.debug(
-                    "skipping file (value=%s) based on filter arg %s=%s",
-                    arg_value,
-                    arg_type,
-                    arg_value,
-                )
-                app.logger.debug("filter_files args=%s", args_dict_to_str(args))
-                continue
-        arg_type = ArgTypes.Scalar.Int.MaxYear
-        if arg_type in args:
-            arg_value = cast(ArgValueScalarInt, args[arg_type])
-            if arg_value and int(float(str(row.year))) > arg_value:
-                app.logger.debug(
-                    "skipping file (value=%s) based on filter arg %s=%s",
-                    arg_value,
-                    arg_type,
-                    arg_value,
-                )
-                app.logger.debug("filter_files args=%s", args_dict_to_str(args))
-                continue
-        # ArgTypeListStr:
-        skip = False
-        country_code = ""
-        region_code = ""
-        city = ""
-        country_code = str(row.countrycode)
-        region_code = str(row.regioncode)
-        city = str(row.city)
-        language_code = str(row.languagecode)
-        arg_type_list_file_value_map: Dict[ArgType, str] = {
-            ArgTypes.List.Str.Artist: str(row.artist),
-            ArgTypes.List.Str.AlbumArtist: str(row.albumartist),
-            ArgTypes.List.Str.Album: str(row.album),
-            ArgTypes.List.Str.Genre: str(row.genre),
-            ArgTypes.List.Str.Title: str(row.title),
-            ArgTypes.List.Str.Year: str(row.year),
-            ArgTypes.List.Str.CountryCode: country_code,
-            ArgTypes.List.Str.RegionCode: region_code,
-            ArgTypes.List.Str.City: str(city),
-            ArgTypes.List.Str.LanguageCode: language_code,
-        }
-        for arg_type, file_value in arg_type_list_file_value_map.items():
-            if arg_type in args:
-                arg_value_list = cast(ArgValueListStr, args[arg_type])
-                app.logger.debug(
-                    "filtering based on %s[] arg = [%s]", arg_type, arg_value_list
-                )
-                if len(arg_value_list) and not any_substr_in_str_ignore_case(
-                    file_value, arg_value_list
-                ):
-                    app.logger.debug(
-                        "skipping file (value=%s) based on %s[] arg = [%s]",
-                        file_value,
-                        arg_type,
-                        arg_value_list,
-                    )
-                    app.logger.debug("filter_files args=%s", args_dict_to_str(args))
-                    skip = True
-                    break
-        if not skip:
-            results.append(row)
-    return pd.DataFrame(results)
+    mask = pd.Series(True, index=files.index)
+    min_year = cast(ArgValueScalarInt, args.get(ArgTypes.Scalar.Int.MinYear, 0))
+    max_year = cast(ArgValueScalarInt, args.get(ArgTypes.Scalar.Int.MaxYear, 0))
+    if min_year or max_year:
+        # Matches the previous int(float(str(year))) conversion.
+        years = files["year"].astype(float).astype(int)
+        if min_year:
+            mask &= years >= min_year
+        if max_year:
+            mask &= years <= max_year
+    for arg_type, column in FILE_FILTER_COLUMNS:
+        values = cast(ArgValueListStr, args.get(arg_type, []))
+        if values:
+            app.logger.debug("filtering based on %s[] arg = [%s]", arg_type, values)
+            mask &= contains_any_ignore_case(files[column], values)
+    return files[mask]
 
 
 def filter_artists(
@@ -223,7 +194,10 @@ def filter_artists(
                         arg_type,
                         arg_value_list,
                     )
-                    app.logger.debug("filter_artists args=%s", args_dict_to_str(args))
+                    if app.logger.isEnabledFor(logging.DEBUG):
+                        app.logger.debug(
+                            "filter_artists args=%s", args_dict_to_str(args)
+                        )
                     skip = True
                     break
         if not skip:
@@ -300,10 +274,32 @@ def get_genre_counts(files: pd.DataFrame, sort: str) -> Dict[str, int]:
         return dict(sorted(ret.items(), key=lambda item: item[1], reverse=True))
 
 
+class TracksResult(NamedTuple):
+    tracks: List[MediaFile]
+    # Album metadata row, only when every matching track belongs to the same album.
+    album: tuple[Any, ...] | None
+
+
+def get_single_album(app: Application, files_filtered: pd.DataFrame) -> tuple[Any, ...] | None:
+    """Look up album metadata only if all filtered tracks share one album path."""
+    if files_filtered.empty:
+        return None
+    album_paths = files_filtered["albumpath"]
+    if album_paths.isna().any():
+        return None
+    first_path = str(album_paths.iloc[0])
+    if not (album_paths == first_path).all():
+        return None
+    albums = get_mediascan_db_albums(app)
+    matches = albums[albums["path"] == first_path].head(1)
+    return next(matches.itertuples(name="album", index=False), None)
+
+
 def get_tracks(
     app: Application, files: pd.DataFrame, artists: pd.DataFrame, args: ArgsDict
-) -> List[MediaFile]:
+) -> TracksResult:
     df = filter_files(app, files, args)
+    album = get_single_album(app, df)
 
     sort = ArgValues.Scalar.Enum.Sort.Random
     if ArgTypes.Scalar.Enum.Sort in args:
@@ -330,7 +326,11 @@ def get_tracks(
             # random.shuffle(ret)
             df = df.sample(frac=1)
 
-    return df_to_mediafile_list(df)
+    max_results = get_config(app).max_results
+    if max_results > 0:
+        df = df.head(max_results)
+
+    return TracksResult(df_to_mediafile_list(df), album)
 
 
 def get_artist_counts(
@@ -601,16 +601,13 @@ def get_album(
     files_filtered = filter_files(app, files, args)
     if files_filtered.empty:
         return None
-    album_paths = {str(row.albumpath) for row in files_filtered.itertuples()}
-    albums_filtered = albums[albums["path"].isin(album_paths)]
+    albums_filtered = albums[albums["path"].isin(files_filtered["albumpath"].unique())]
     if ArgTypes.Boolean.ExplicitCover in args:
         explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
         albums_filtered = albums_filtered[
             albums_filtered["explicitcover"] == explicit_cover
         ]
-    if not albums_filtered.empty:
-        return next(albums_filtered.itertuples(name="album", index=False))
-    return None
+    return next(albums_filtered.head(1).itertuples(name="album", index=False), None)
 
 
 def get_word_cloud_data_genres(files: pd.DataFrame) -> List[Dict[str, str]]:
