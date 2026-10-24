@@ -120,7 +120,9 @@ FILE_FILTER_COLUMNS: Tuple[Tuple[ArgType, str], ...] = (
 )
 
 
-def contains_any_ignore_case(column: "pd.Series[Any]", substrings: List[str]) -> "pd.Series[bool]":
+def contains_any_ignore_case(
+    column: "pd.Series[Any]", substrings: List[str]
+) -> "pd.Series[bool]":
     """Vectorized any_substr_in_str_ignore_case; str() keeps missing values as "nan"."""
     lowered = column.map(str).str.lower()
     matches = pd.Series(False, index=column.index)
@@ -129,11 +131,38 @@ def contains_any_ignore_case(column: "pd.Series[Any]", substrings: List[str]) ->
     return matches
 
 
+def expand_artist_args(args: ArgsDict) -> ArgsDict:
+    """
+    Add each comma-separated part of every 'artist' value as an additional value,
+    keeping the original, e.g. "A Tribe Called Quest, Busta Rhymes, Redman" also
+    yields "A Tribe Called Quest", "Busta Rhymes" and "Redman".
+    Returns a new dict; the given args are not modified.
+    """
+    values = cast(ArgValueListStr, args.get(ArgTypes.List.Str.Artist, []))
+    if not values:
+        return args
+    expanded: List[str] = []
+    for value in values:
+        if value not in expanded:
+            expanded.append(value)
+        for part in value.split(","):
+            part = part.strip()
+            if part and part not in expanded:
+                expanded.append(part)
+    return {**args, ArgTypes.List.Str.Artist: expanded}
+
+
 def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.DataFrame:
     """
     Note: This is now meant to be used with joined dataframe containing both file and artist data
     """
-    app.logger.info("filter_files args=%s", args_dict_to_str(args))
+    args_orig = args.copy()
+    args = expand_artist_args(args)
+    app.logger.info(
+        "filter_files args[original]=%s args[expanded]=%s",
+        args_dict_to_str(args_orig),
+        args_dict_to_str(args),
+    )
     if ArgTypes.Boolean.ExplicitCover in args:
         albums = get_mediascan_db_albums(app)
         explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
@@ -207,7 +236,9 @@ def filter_artists(
     return pd.DataFrame(results)
 
 
-def filter_albums(app: Application, albums: pd.DataFrame, args: ArgsDict) -> pd.DataFrame:
+def filter_albums(
+    app: Application, albums: pd.DataFrame, args: ArgsDict
+) -> pd.DataFrame:
     """Filter enriched album rows using album metadata and related track attributes."""
     app.logger.info("filter_albums args=%s", args_dict_to_str(args))
     filtered = albums
@@ -280,7 +311,9 @@ class TracksResult(NamedTuple):
     album: tuple[Any, ...] | None
 
 
-def get_single_album(app: Application, files_filtered: pd.DataFrame) -> tuple[Any, ...] | None:
+def get_single_album(
+    app: Application, files_filtered: pd.DataFrame
+) -> tuple[Any, ...] | None:
     """Look up album metadata only if all filtered tracks share one album path."""
     if files_filtered.empty:
         return None
@@ -312,18 +345,8 @@ def get_tracks(
         and ArgTypes.List.Str.AlbumArtist not in args
     ):
         if sort == ArgValues.Scalar.Enum.Sort.Year:
-            """
-            ret = list(
-                sorted(
-                    ret,
-                    key=lambda x: getattr(x, "year"),
-                    reverse=True,
-                )
-            )
-            """
             df = df.sort_values(by="year", ascending=False)
         elif sort == ArgValues.Scalar.Enum.Sort.Random:
-            # random.shuffle(ret)
             df = df.sample(frac=1)
 
     max_results = get_config(app).max_results

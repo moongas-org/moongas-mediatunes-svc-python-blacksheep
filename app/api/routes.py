@@ -353,6 +353,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
                 "path": media_file.path,
                 "coverPath": str(cover_path),
                 "artist": media_file.artist,
+                "albumartist": media_file.albumartist,
                 "album": media_file.album,
                 "title": media_file.title,
                 "genre": media_file.genre,

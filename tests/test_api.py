@@ -523,6 +523,7 @@ async def test_api_random_track(app: Application):
     data = await resp.json()
     assert data["title"] == "Track 1"
     assert data["artist"] == "Artist One"
+    assert data["albumartist"] == "Artist One"
     assert "coverPath" in data
 
     resp = await client.get("/api/random-track?genre=Jazz")
