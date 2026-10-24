@@ -154,6 +154,8 @@ def expand_artist_args(args: ArgsDict) -> ArgsDict:
 
 def filter_files(app: Application, files: pd.DataFrame, args: ArgsDict) -> pd.DataFrame:
     """
+    Filter media files based on the given arguments.
+
     Note: This is now meant to be used with joined dataframe containing both file and artist data
     """
     args_orig = args.copy()
