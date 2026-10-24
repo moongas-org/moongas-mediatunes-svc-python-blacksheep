@@ -61,6 +61,23 @@ python run.py mediatunes-config.yml
 
 The web UI single-page application (Vue 3 + TypeScript, built with Vite) has moved to a separate repo. It consumes this backend's JSON API (`app/api/` — `/api/config`, `/api/albums`, `/api/album`, `/api/tracks`, `/api/artists`, `/api/artist`, `/api/genres`, `/api/artist-geo/<kind>`, `/api/wordcloud/*`, `/api/random-track`) and the media files via `/getfile/*`.
 
+### Media streaming and seeking
+
+`GET /getfile/<path>` advertises `Accept-Ranges: bytes` and supports single
+HTTP byte ranges, including open-ended (`bytes=100000-`) and suffix
+(`bytes=-1000`) ranges. For example, `Range: bytes=100000-100999` returns
+HTTP 206 with `Content-Range: bytes 100000-100999/TOTAL_FILE_SIZE`,
+`Content-Length: 1000`, and only those bytes. Ranges extending past the end
+are clipped to the file size; unsatisfiable ranges return HTTP 416 with
+`Content-Range: bytes */TOTAL_FILE_SIZE`.
+
+Requests without a range return the complete file with HTTP 200 and its
+`Content-Length`. Malformed ranges, unsupported range units, and multipart
+ranges are ignored and return the complete file. Requests with `If-Range`
+also return the complete file because this route does not emit validators.
+`HEAD` returns full-file headers without a body and ignores `Range`.
+Media path checks and the JPG-to-WebP cover fallback apply as before.
+
 ### Album metadata
 
 `GET /api/album?artist=Artist%20One&album=Album&year=2000` returns metadata
