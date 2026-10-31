@@ -4,7 +4,7 @@ JSON API routes consumed by the mediatunes-svc web frontend.
 The frontend single-page application lives in a separate repo; these
 endpoints expose the media library data as JSON so it can render pages
 client-side. They reuse the filtering/counting logic in
-app/utils/media_files_utils.py.
+app/utils/mediascan_db/.
 """
 
 import random
@@ -21,22 +21,23 @@ from app.utils.app_utils import (
     get_config,
     get_mediascan_db_albums,
     get_mediascan_db_artists,
-    get_mediascan_db_files_artists_joined,
+    get_mediascan_db_tracks_album_artist_joined,
 )
-from app.utils.media_files_utils import (
-    MediaFile,
-    get_album,
-    get_albums,
+from app.utils.mediascan_db.albums import get_album, get_albums
+from app.utils.mediascan_db.artists import (
     get_artist,
-    get_artist_counts,
     get_country_code_name_map,
-    get_cover_path,
-    get_files_list,
-    get_genre_counts,
     get_language_code_name_map,
     get_region_code_name_map,
-    get_tracks,
     get_word_cloud_data_artists,
+)
+from app.utils.mediascan_db.tracks import (
+    TrackDataWithArtistData,
+    get_artist_counts,
+    get_cover_path,
+    get_genre_counts,
+    get_tracks,
+    get_tracks_list,
     get_word_cloud_data_genres,
 )
 from app.utils.request_args_utils import get_request_args
@@ -199,7 +200,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
             AlbumRow | None,
             get_album(
                 app,
-                get_mediascan_db_files_artists_joined(app),
+                get_mediascan_db_tracks_album_artist_joined(app),
                 get_mediascan_db_albums(app),
                 args,
             ),
@@ -215,8 +216,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         app.logger.debug("api/tracks args=%s", args_dict_to_str(args))
         track_list, album_row = get_tracks(
             app,
-            get_mediascan_db_files_artists_joined(app),
-            get_mediascan_db_artists(app),
+            get_mediascan_db_tracks_album_artist_joined(app),
             args,
         )
         cover_path: Path = Path()
@@ -240,8 +240,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         app.logger.debug("api/artists args=%s", args_dict_to_str(args))
         artist_counts = get_artist_counts(
             app,
-            get_mediascan_db_files_artists_joined(app),
-            get_mediascan_db_artists(app),
+            get_mediascan_db_tracks_album_artist_joined(app),
             args,
         )
         return json(
@@ -261,7 +260,6 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
             ArtistRow | None,
             get_artist(
                 app,
-                get_mediascan_db_files_artists_joined(app),
                 get_mediascan_db_artists(app),
                 args,
             ),
@@ -288,7 +286,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         if values:
             sort = values[0]
         genre_counts = get_genre_counts(
-            get_mediascan_db_files_artists_joined(app), sort=sort
+            get_mediascan_db_tracks_album_artist_joined(app), sort=sort
         )
         return json(
             {
@@ -311,7 +309,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         return json(
             {
                 "words": get_word_cloud_data_genres(
-                    get_mediascan_db_files_artists_joined(app)
+                    get_mediascan_db_tracks_album_artist_joined(app)
                 )
             }
         )
@@ -322,7 +320,6 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
             {
                 "words": get_word_cloud_data_artists(
                     app,
-                    get_mediascan_db_files_artists_joined(app),
                     get_mediascan_db_artists(app),
                     get_request_args(request),
                 )
@@ -338,29 +335,28 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         cfg = get_config(app)
         args = get_request_args(request)
         app.logger.debug("api/random-track args=%s", args_dict_to_str(args))
-        files_list: List[MediaFile] = get_files_list(
+        tracks_list: List[TrackDataWithArtistData] = get_tracks_list(
             app,
-            get_mediascan_db_files_artists_joined(app),
-            get_mediascan_db_artists(app),
+            get_mediascan_db_tracks_album_artist_joined(app),
             args,
         )
-        if not len(files_list):
+        if not len(tracks_list):
             raise NotFound()
-        media_file = random.choice(files_list)
-        cover_path = get_cover_path(cfg, media_file)
+        track = random.choice(tracks_list)
+        cover_path = get_cover_path(cfg, track)
         return json(
             {
-                "path": media_file.path,
+                "path": track.path,
                 "coverPath": str(cover_path),
-                "artist": media_file.artist,
-                "albumartist": media_file.albumartist,
-                "album": media_file.album,
-                "title": media_file.title,
-                "genre": media_file.genre,
-                "year": media_file.year,
-                "countryCode": media_file.countryCode,
-                "regionCode": media_file.regionCode,
-                "city": media_file.city,
-                "languageCode": media_file.languageCode,
+                "artist": track.artist,
+                "albumartist": track.albumartist,
+                "album": track.album,
+                "title": track.title,
+                "genre": track.genre,
+                "year": track.year,
+                "countryCode": track.countryCode,
+                "regionCode": track.regionCode,
+                "city": track.city,
+                "languageCode": track.languageCode,
             }
         )

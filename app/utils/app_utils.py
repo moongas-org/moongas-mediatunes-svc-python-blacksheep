@@ -14,10 +14,10 @@ class AppState:
 
     config: MediatunesServiceConfig
     engine: sa.Engine
-    db_files: pd.DataFrame
+    db_tracks: pd.DataFrame
     db_artists: pd.DataFrame
     db_albums: pd.DataFrame
-    db_files_artists_joined: pd.DataFrame
+    db_tracks_album_artist_joined: pd.DataFrame
     static_folder: str
     logger: logging.Logger
 
@@ -31,8 +31,8 @@ def get_config(app: Application) -> MediatunesServiceConfig:
     return get_state(app).config
 
 
-def get_mediascan_db_files(app: Application) -> pd.DataFrame:
-    return get_state(app).db_files
+def get_mediascan_db_tracks(app: Application) -> pd.DataFrame:
+    return get_state(app).db_tracks
 
 
 def get_mediascan_db_artists(app: Application) -> pd.DataFrame:
@@ -44,5 +44,5 @@ def get_mediascan_db_albums(app: Application) -> pd.DataFrame:
     return get_state(app).db_albums
 
 
-def get_mediascan_db_files_artists_joined(app: Application) -> pd.DataFrame:
-    return get_state(app).db_files_artists_joined
+def get_mediascan_db_tracks_album_artist_joined(app: Application) -> pd.DataFrame:
+    return get_state(app).db_tracks_album_artist_joined

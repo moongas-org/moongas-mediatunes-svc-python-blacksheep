@@ -10,7 +10,8 @@ from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.utils.app_utils import (
     get_mediascan_db_albums,
     get_mediascan_db_artists,
-    get_mediascan_db_files,
+    get_mediascan_db_tracks,
+    get_mediascan_db_tracks_album_artist_joined,
 )
 
 
@@ -47,16 +48,30 @@ def test_create_app_missing_required_tables(tmp_path: Path):
         create_app(config)
 
 
+def test_create_app_path_based_schema_requires_rescan(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    db_file = tmp_path / "path_based.db"
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("CREATE TABLE track (id INTEGER PRIMARY KEY, artistpath TEXT, albumpath TEXT)")
+        conn.execute("CREATE TABLE artist (path TEXT PRIMARY KEY)")
+    with pytest.raises(ValueError, match="missing ID relationship columns"):
+        create_app(MediatunesServiceConfig(mediascan_database_file_path=f"sqlite:///{db_file}"))
+    assert "Rescan with a current mediascan" in caplog.text
+
+
 def test_create_app_valid_database(tmp_path: Path):
     db_file = tmp_path / "valid.db"
     conn = sqlite3.connect(db_file)
     conn.execute(
-        "CREATE TABLE mediafile (id INTEGER PRIMARY KEY, artistpath TEXT, title TEXT)"
+        "CREATE TABLE track (id INTEGER PRIMARY KEY, artistid INTEGER, albumid INTEGER, "
+        "title TEXT, artist TEXT, albumartist TEXT, genre TEXT)"
     )
-    conn.execute("CREATE TABLE artist (path TEXT PRIMARY KEY, name TEXT)")
+    conn.execute(
+        "CREATE TABLE artist (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
+        "countrycode TEXT, regioncode TEXT, city TEXT, languagecode TEXT)"
+    )
     conn.execute("INSERT INTO artist (path, name) VALUES ('artist1', 'Artist One')")
     conn.execute(
-        "INSERT INTO mediafile (id, artistpath, title) VALUES (1, 'artist1', 'Track 1')"
+        "INSERT INTO track (id, artistid, title) VALUES (1, 1, 'Track 1')"
     )
     conn.commit()
     conn.close()
@@ -66,11 +81,13 @@ def test_create_app_valid_database(tmp_path: Path):
     )
     app = create_app(config)
     assert isinstance(app, Application)
-    files_df = get_mediascan_db_files(app)
+    tracks_df = get_mediascan_db_tracks(app)
+    joined_df = get_mediascan_db_tracks_album_artist_joined(app)
     artists_df = get_mediascan_db_artists(app)
-    assert len(files_df) == 1
+    assert len(tracks_df) == 1
+    assert joined_df.loc[0, "title"] == "Track 1"
     assert len(artists_df) == 1
     assert get_mediascan_db_albums(app).empty
     # String columns are loaded as object dtype for fast row access under pandas 3.
-    assert not any(isinstance(dtype, pd.StringDtype) for dtype in files_df.dtypes)
+    assert not any(isinstance(dtype, pd.StringDtype) for dtype in tracks_df.dtypes)
     assert not any(isinstance(dtype, pd.StringDtype) for dtype in artists_df.dtypes)

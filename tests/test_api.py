@@ -14,8 +14,12 @@ from blacksheep.testing import TestClient
 from app import create_app
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.types.config.server_config import ServerConfig
-from app.utils.app_utils import get_config, get_mediascan_db_files_artists_joined
-from app.utils.media_files_utils import MediaFile
+from app.utils.app_utils import (
+    get_config,
+    get_mediascan_db_albums,
+    get_mediascan_db_tracks_album_artist_joined,
+)
+from app.utils.mediascan_db.tracks import TrackDataWithArtistData
 
 
 @pytest.fixture(autouse=True)
@@ -29,11 +33,11 @@ def db_file(tmp_path: Path) -> Path:
     db_file = tmp_path / "api_test.db"
     conn = sqlite3.connect(db_file)
     conn.execute("""
-        CREATE TABLE mediafile (
+        CREATE TABLE track (
             id INTEGER PRIMARY KEY,
             path TEXT,
-            albumpath TEXT,
-            artistpath TEXT,
+            albumid INTEGER,
+            artistid INTEGER,
             title TEXT,
             artist TEXT,
             albumartist TEXT,
@@ -48,12 +52,15 @@ def db_file(tmp_path: Path) -> Path:
             path TEXT UNIQUE,
             name TEXT,
             year INTEGER,
-            explicitcover BOOLEAN
+            explicitcover BOOLEAN,
+            genre TEXT,
+            artistid INTEGER
         )
         """)
     conn.execute("""
         CREATE TABLE artist (
-            path TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
+            path TEXT UNIQUE,
             name TEXT,
             countrycode TEXT,
             regioncode TEXT,
@@ -66,14 +73,13 @@ def db_file(tmp_path: Path) -> Path:
         "VALUES ('/data/Music/A/Artist One', 'Artist One', 'US', 'US-AL', 'Huntsville', 'en')"
     )
     conn.execute(
-        "INSERT INTO mediafile (id, path, albumpath, artistpath, title, artist, albumartist, album, genre, year) "
+        "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year) "
         "VALUES (1, '/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3', "
-        "'/data/Music/A/Artist One/Album [2000]', "
-        "'/data/Music/A/Artist One', 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000')"
+        "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000')"
     )
     conn.execute(
-        "INSERT INTO album (path, name, year, explicitcover) "
-        "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1)"
+        "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
+        "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1, 'Rock', 1)"
     )
     conn.commit()
     conn.close()
@@ -122,6 +128,74 @@ async def test_api_tracks_filtered(app: Application):
     assert data["album"] is None
 
 
+async def test_api_relations_use_ids_after_paths_change(db_file: Path):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("UPDATE artist SET path = '/renamed/Artist', city = 'New City'")
+        conn.execute("UPDATE album SET path = '/renamed/Album'")
+    application = create_app(
+        MediatunesServiceConfig(
+            mediascan_database_file_path=f"sqlite:///{db_file}",
+            server_config=ServerConfig(url_prefix="/api"),
+        )
+    )
+    await application.start()
+    client = TestClient(application)
+    response = await client.get("/api/tracks?explicitCover=true&city=New%20City")
+    data = await response.json()
+    assert response.status == 200
+    assert len(data["files"]) == 1
+    assert data["files"][0]["artist_path"] == "/renamed/Artist"
+    assert data["files"][0]["album_path"] == "/renamed/Album"
+    assert data["files"][0]["year"] == 2000
+    assert data["album"]["year"] == 2001
+    assert data["coverPath"] == "/renamed/Album/cover.jpg"
+    assert data["album"]["path"] == "/renamed/Album"
+    albums = await client.get("/api/albums?city=New%20City&genre=Rock")
+    assert len((await albums.json())["albums"]) == 1
+
+
+@pytest.mark.parametrize("relation_id", [None, 99])
+async def test_api_retains_tracks_without_related_rows(db_file: Path, relation_id: int | None):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("UPDATE track SET albumid = ?, artistid = ?", (relation_id, relation_id))
+    application = create_app(
+        MediatunesServiceConfig(
+            mediascan_database_file_path=f"sqlite:///{db_file}",
+            server_config=ServerConfig(url_prefix="/api"),
+        )
+    )
+    await application.start()
+    client = TestClient(application)
+    response = await client.get("/api/tracks")
+    data = await response.json()
+    assert response.status == 200
+    assert len(data["files"]) == 1
+    assert data["album"] is None
+    assert data["files"][0]["countryCode"] == ""
+    assert data["files"][0]["artist_path"] == ""
+    filtered = await client.get("/api/tracks?explicitCover=false")
+    assert (await filtered.json())["files"] == []
+
+
+async def test_api_empty_track_table_keeps_album_metadata(db_file: Path):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("DELETE FROM track")
+    application = create_app(
+        MediatunesServiceConfig(
+            mediascan_database_file_path=f"sqlite:///{db_file}",
+            server_config=ServerConfig(url_prefix="/api"),
+        )
+    )
+    await application.start()
+    client = TestClient(application)
+    tracks = await client.get("/api/tracks")
+    assert (await tracks.json())["files"] == []
+    albums = await client.get("/api/albums")
+    data = await albums.json()
+    assert len(data["albums"]) == 1
+    assert data["albums"][0]["artist"] == "Artist One"
+
+
 SINGLE_ALBUM_JSON: dict[str, object] = {
     "id": 1,
     "path": "/data/Music/A/Artist One/Album [2000]",
@@ -159,7 +233,7 @@ async def test_api_tracks_single_album(
 
 async def test_api_tracks_single_album_without_metadata(db_file: Path):
     with sqlite3.connect(db_file) as conn:
-        conn.execute("UPDATE album SET path = '/other/album'")
+        conn.execute("UPDATE album SET id = 99")
     application = create_app(
         MediatunesServiceConfig(
             mediascan_database_file_path=f"sqlite:///{db_file}",
@@ -207,8 +281,8 @@ async def test_api_tracks_max_results(
 
 
 async def test_api_tracks_max_results_after_sorting(multi_album_app: Application):
-    files = get_mediascan_db_files_artists_joined(multi_album_app)
-    files["year"] = files["title"].map(
+    tracks = get_mediascan_db_tracks_album_artist_joined(multi_album_app)
+    tracks["track_year"] = tracks["title"].map(
         {"Track 1": "1990", "Other Track": "2010", "Second Track": "2000"}
     )
     get_config(multi_album_app).max_results = 1
@@ -250,6 +324,7 @@ async def test_api_albums(app: Application):
         ("maxYear=2000", 0),
         ("artist=Artist%20One&albumartist=Artist%20One&genre=Rock&title=Track%201", 1),
         ("countryCode=US&regionCode=US-AL&city=Huntsville&languageCode=en", 1),
+        ("genre=Rock", 1),
         ("genre=Jazz", 0),
         ("artist=Nobody", 0),
         ("artist=one&artist=nobody", 1),
@@ -263,6 +338,17 @@ async def test_api_albums_filtered(app: Application, query: str, count: int):
     resp = await TestClient(app).get("/api/albums?" + query)
     assert resp.status == 200
     assert len((await resp.json())["albums"]) == count
+
+
+async def test_api_albums_filter_by_album_genre_not_track_genre(app: Application):
+    get_mediascan_db_albums(app)["genre"] = "Jazz"
+
+    client = TestClient(app)
+    jazz_response = await client.get("/api/albums?genre=Jazz")
+    rock_response = await client.get("/api/albums?genre=Rock")
+
+    assert len((await jazz_response.json())["albums"]) == 1
+    assert (await rock_response.json())["albums"] == []
 
 
 @pytest.mark.parametrize("value", ["yes", "2", "", "not-a-bool"])
@@ -308,21 +394,21 @@ async def test_api_album_not_found(app: Application, query: str):
     assert resp.status == 404
 
 
-async def test_api_album_matches_path_not_name(db_file: Path):
+async def test_api_album_matches_id_not_name(db_file: Path):
     with sqlite3.connect(db_file) as conn:
         conn.execute(
             "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
             "VALUES ('/data/Music/B/Artist Two', 'Artist Two', 'US', 'US-AL', 'Huntsville', 'en')"
         )
         conn.execute(
-            "INSERT INTO mediafile (path, albumpath, artistpath, title, artist, albumartist, album, genre, year) "
+            "INSERT INTO track (path, albumid, artistid, title, artist, albumartist, album, genre, year) "
             "VALUES ('/data/Music/B/Artist Two/Album [2000]/01.mp3', "
-            "'/data/Music/B/Artist Two/Album [2000]', '/data/Music/B/Artist Two', "
+            "2, 2, "
             "'Other Track', 'Artist Two', 'Artist Two', 'Album', 'Rock', '2000')"
         )
         conn.execute(
-            "INSERT INTO album (path, name, year, explicitcover) "
-            "VALUES ('/data/Music/B/Artist Two/Album [2000]', 'Album Metadata Name', 2000, 0)"
+            "INSERT INTO album (path, name, year, explicitcover, artistid) "
+            "VALUES ('/data/Music/B/Artist Two/Album [2000]', 'Album Metadata Name', 2000, 0, 2)"
         )
     application = create_app(
         MediatunesServiceConfig(
@@ -352,7 +438,7 @@ async def test_api_album_without_metadata(db_file: Path, metadata: str):
         elif metadata == "empty":
             conn.execute("DELETE FROM album")
         else:
-            conn.execute("UPDATE album SET path = '/other/album'")
+            conn.execute("UPDATE album SET id = 99")
     application = create_app(
         MediatunesServiceConfig(
             mediascan_database_file_path=f"sqlite:///{db_file}",
@@ -374,24 +460,24 @@ async def multi_album_app(db_file: Path) -> Application:
     with sqlite3.connect(db_file) as conn:
         # Duplicate names/years must not collapse distinct album paths.
         conn.execute(
-            "INSERT INTO album (path, name, year, explicitcover) "
-            "VALUES ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0)"
+            "INSERT INTO album (path, name, year, explicitcover, artistid) "
+            "VALUES ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0, 1)"
         )
         conn.execute(
-            "INSERT INTO mediafile (path, albumpath, artistpath, title, artist, albumartist, album, genre, year) "
+            "INSERT INTO track (path, albumid, artistid, title, artist, albumartist, album, genre, year) "
             "VALUES ('/data/Music/A/Artist One/Other [2000]/01.mp3', "
-            "'/data/Music/A/Artist One/Other [2000]', '/data/Music/A/Artist One', "
+            "2, 1, "
             "'Other Track', 'Artist One', '', 'Other', 'Jazz', '2000')"
         )
         conn.execute(
-            "INSERT INTO mediafile (path, albumpath, artistpath, title, artist, albumartist, album, genre, year) "
+            "INSERT INTO track (path, albumid, artistid, title, artist, albumartist, album, genre, year) "
             "VALUES ('/data/Music/A/Artist One/Album [2000]/02.mp3', "
-            "'/data/Music/A/Artist One/Album [2000]', '/data/Music/A/Artist One', "
+            "1, 1, "
             "'Second Track', 'Guest Artist', 'Artist One', 'Album', 'Jazz', '2000')"
         )
         conn.execute(
-            "INSERT INTO album (path, name, year, explicitcover) "
-            "VALUES ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0)"
+            "INSERT INTO album (path, name, year, explicitcover, artistid) "
+            "VALUES ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0, NULL)"
         )
     application = create_app(
         MediatunesServiceConfig(
@@ -547,8 +633,8 @@ async def test_api_track_selection_explicit_cover(
     query: str,
     expected_titles: set[str],
 ):
-    def choose_first(files: list[MediaFile]) -> MediaFile:
-        return files[0]
+    def choose_first(tracks: list[TrackDataWithArtistData]) -> TrackDataWithArtistData:
+        return tracks[0]
 
     monkeypatch.setattr("app.api.routes.random.choice", choose_first)
     client = TestClient(multi_album_app)
@@ -573,7 +659,7 @@ async def test_api_random_track_explicit_cover_without_metadata(
         elif metadata == "empty":
             conn.execute("DELETE FROM album")
         else:
-            conn.execute("UPDATE album SET path = '/other/album'")
+            conn.execute("UPDATE album SET id = 99")
     application = create_app(
         MediatunesServiceConfig(
             mediascan_database_file_path=f"sqlite:///{db_file}",

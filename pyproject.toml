@@ -39,7 +39,7 @@ classifiers = [
 dependencies = [
   "blacksheep>=2.6.3",
   "uvicorn>=0.53.0",
-  "mediascan>=1.2.1",
+  "mediascan>=1.2.5",
   "dataclass-wizard>=0.39.1",
   "numpy>=2.2.6; python_version < '3.12'",
   "numpy>=2.5.3; python_version >= '3.12'",

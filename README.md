@@ -89,18 +89,18 @@ from the scanner's `album` table:
 
 Like `/api/artist`, this returns the first match, or HTTP 404 if none is found.
 It accepts the existing track filters (including `artist`, `albumartist`, `album`,
-`year`, and geographic filters), then matches `mediafile.albumpath` to `album.path`.
+`year`, and geographic filters), then matches `track.albumid` to `album.id`.
 The returned name, year, and explicit-cover flag come from album metadata, which
 can differ from track tags.
 
 `GET /api/albums` lists albums from the `album` table, preserving the
 `artist`, `album`, `year`, and `coverPath` response fields. The album name and
 year (including `album`, `year`, `minYear`, and `maxYear` filters) now use album
-metadata rather than track tags. Related tracks and artist data supply the
-existing artist, album-artist, title, genre, and geographic filters. Combined
-track filters must match the same track. Each album path appears once; artist
-display prefers the matching track's album artist, then its track artist.
-Albums without related tracks are included with an empty artist name.
+metadata rather than track tags. The associated artist supplies the artist and
+geographic filters; track-only filters such as `albumartist`, `title`, and
+`genre` do not apply to this endpoint. Each album path appears once, including
+albums without tracks; artist display comes from the album's artist relationship
+and is empty when that relationship is missing.
 Cover paths come from the album directory and respect the configured cover root.
 Sorting and the album-cover result limit continue to apply.
 
@@ -110,7 +110,7 @@ results, as with `maxResultsAlbumCovers`. This limit does not restrict the
 candidates used by `/api/random-track`.
 
 The `/api/tracks` response also includes an `album` field. When every matching
-track (before the `maxResults` limit) belongs to the same album directory, it
+track (before the `maxResults` limit) references the same album ID, it
 contains that album's metadata in the same shape as `/api/album`
 (`id`, `path`, `name`, `year`, `explicitCover`); otherwise it is `null`. At most
 one album is looked up per request, so the tracks page does not need a separate
@@ -121,12 +121,19 @@ accept `explicitCover=true` or
 `explicitCover=false`, also accepting `1` and `0` (case-insensitive).
 Omitting the argument includes either value; invalid values return HTTP 400.
 For example: `/api/albums?explicitCover=false&minYear=1990`.
-Track selection matches `mediafile.albumpath` to album metadata paths and applies
+Track selection matches `track.albumid` to `album.id` and applies
 this filter before selecting a random track. With an explicit-cover filter,
 tracks without matching album metadata are excluded; without the filter, their
 existing behavior is unchanged. No matching random-track candidates returns HTTP 404.
 
-Older databases without an `album` table remain supported; `/api/album` returns
+The service requires `mediascan>=1.2.5` and ID-based relationships:
+`track.artistid` references `artist.id`, and `track.albumid` references `album.id`.
+When an `album` table is present, `album.artistid` references `artist.id`.
+The joined data is loaded through `mediascan.utils.db.mediascan_db_loader`;
+paths are display/cover data, not join keys. Databases without these ID columns
+must be regenerated with the current scanner.
+
+Databases with ID columns but without an `album` table remain supported; `/api/album` returns
 404 and `/api/albums` returns an empty list until the library is rescanned with
 a current scanner. The `/api` prefix is configurable via `serverConfig.urlPrefix`.
 
