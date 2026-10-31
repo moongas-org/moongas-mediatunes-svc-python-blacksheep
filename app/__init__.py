@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from mediascan.utils.db.mediascan_db_loader import (
     get_df_album_artist_joined,
     get_df_artist,
+    get_df_mediafile,
     get_df_track,
     get_df_track_album_artist_joined,
 )
@@ -114,6 +115,13 @@ def create_app(config: MediatunesServiceConfig) -> Application:
     try:
         tracks_df = strings_as_object(get_df_track(engine))
         artists_df = strings_as_object(get_df_artist(engine))
+        if "mediafile" in table_names:
+            mediafiles_df = strings_as_object(get_df_mediafile(engine))
+        else:
+            app.logger.warning(
+                "Database has no 'mediafile' table; mediafile requests will return no entries."
+            )
+            mediafiles_df = pd.DataFrame(columns=["id", "trackid"])
         missing_ids = [
             f"track.{column}"
             for column in ("artistid", "albumid")
@@ -148,8 +156,9 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             joined_df["album_path"] = ""
             joined_df["artist_path"] = ""
         app.logger.info(
-            "Successfully loaded %d tracks, %d artists and %d albums from database.",
+            "Successfully loaded %d tracks, %d artists, %d albums and %d mediafiles from database.",
             len(tracks_df), len(artists_df), len(albums_df),
+            len(mediafiles_df),
         )
     except SQLAlchemyError as ex:
         app.logger.error(
@@ -174,6 +183,7 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             db_tracks=tracks_df,
             db_artists=artists_df,
             db_albums=albums_df,
+            db_mediafiles=mediafiles_df,
             db_tracks_album_artist_joined=joined_df,
             static_folder=static_folder,
             logger=app.logger,

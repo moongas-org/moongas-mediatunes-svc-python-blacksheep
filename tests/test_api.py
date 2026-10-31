@@ -68,6 +68,14 @@ def db_file(tmp_path: Path) -> Path:
             languagecode TEXT
         )
         """)
+    conn.execute("""
+        CREATE TABLE mediafile (
+            id INTEGER PRIMARY KEY,
+            trackid INTEGER,
+            path TEXT,
+            size INTEGER
+        )
+        """)
     conn.execute(
         "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
         "VALUES ('/data/Music/A/Artist One', 'Artist One', 'US', 'US-AL', 'Huntsville', 'en')"
@@ -80,6 +88,18 @@ def db_file(tmp_path: Path) -> Path:
     conn.execute(
         "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
         "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1, 'Rock', 1)"
+    )
+    conn.execute(
+        "INSERT INTO mediafile (id, trackid, path, size) "
+        "VALUES (1, 1, '/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3', 1024)"
+    )
+    conn.execute(
+        "INSERT INTO mediafile (id, trackid, path, size) "
+        "VALUES (2, 2, '/data/Music/A/Artist One/Album [2000]/02 - Track 2.mp3', 2048)"
+    )
+    conn.execute(
+        "INSERT INTO mediafile (id, trackid, path, size) "
+        "VALUES (3, 1, '/data/Music/A/Artist One/Album [2000]/alternate.mp3', 512)"
     )
     conn.commit()
     conn.close()
@@ -303,6 +323,34 @@ async def test_api_albums(app: Application):
     assert data["albums"][0]["artist"] == "Artist One"
     assert data["albums"][0]["coverPath"].endswith("/Artist One/Album [2000]/cover.jpg")
     assert data["albums"][0]["explicitCover"] is True
+
+
+async def test_api_mediafiles_filters_by_track_id_only(app: Application):
+    response = await TestClient(app).get("/api/mediafiles?trackid=1")
+
+    assert response.status == 200
+    mediafiles = (await response.json())["mediafiles"]
+    assert sorted(mediafiles, key=lambda mediafile: mediafile["id"]) == [
+        {
+            "id": 1,
+            "trackid": 1,
+            "path": "/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3",
+            "size": 1024,
+        },
+        {
+            "id": 3,
+            "trackid": 1,
+            "path": "/data/Music/A/Artist One/Album [2000]/alternate.mp3",
+            "size": 512,
+        },
+    ]
+
+
+@pytest.mark.parametrize("query", ["", "?trackid=nope"])
+async def test_api_mediafiles_requires_integer_track_id(app: Application, query: str):
+    response = await TestClient(app).get("/api/mediafiles" + query)
+
+    assert response.status == 400
 
 
 @pytest.mark.parametrize(

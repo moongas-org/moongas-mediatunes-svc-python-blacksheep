@@ -17,6 +17,7 @@ class AppState:
     db_tracks: pd.DataFrame
     db_artists: pd.DataFrame
     db_albums: pd.DataFrame
+    db_mediafiles: pd.DataFrame
     db_tracks_album_artist_joined: pd.DataFrame
     static_folder: str
     logger: logging.Logger
@@ -42,6 +43,10 @@ def get_mediascan_db_artists(app: Application) -> pd.DataFrame:
 def get_mediascan_db_albums(app: Application) -> pd.DataFrame:
     """Return album metadata enriched with related track and artist filter fields."""
     return get_state(app).db_albums
+
+
+def get_mediascan_db_mediafiles(app: Application) -> pd.DataFrame:
+    return get_state(app).db_mediafiles
 
 
 def get_mediascan_db_tracks_album_artist_joined(app: Application) -> pd.DataFrame:
