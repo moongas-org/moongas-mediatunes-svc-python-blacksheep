@@ -50,6 +50,7 @@ def test_expand_artist_args_without_artist():
 def test_row_to_track_data_with_artist_data():
     track = row_to_track_data_with_artist_data(
         SimpleNamespace(
+            id=1,
             path="/music/Artist/Album/track.yml",
             album_path="/music/Artist/Album",
             artist_path="/music/Artist",
@@ -67,6 +68,7 @@ def test_row_to_track_data_with_artist_data():
     )
 
     assert isinstance(track, TrackDataWithArtistData)
+    assert track.id == 1
     assert track.path == "/music/Artist/Album/track.yml"
     assert track.format == "mp3"
     assert track.album_path == "/music/Artist/Album"

@@ -134,6 +134,7 @@ async def test_api_tracks(app: Application):
     assert resp.status == 200
     data = await resp.json()
     assert len(data["files"]) == 1
+    assert data["files"][0]["id"] == 1
     assert data["files"][0]["title"] == "Track 1"
     assert data["files"][0]["genre"] == "Rock"
     assert data["album"]["name"] == "Album Metadata Name"

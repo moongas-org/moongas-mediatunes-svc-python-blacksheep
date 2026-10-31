@@ -23,6 +23,7 @@ from app.utils.app_utils import get_config, get_mediascan_db_albums
 class TrackDataWithArtistData:
     """Track data enriched with artist geo fields for API responses."""
 
+    id: int
     path: str
     album_path: str
     artist_path: str
@@ -43,6 +44,7 @@ class TrackDataWithArtistData:
 
 def row_to_track_data_with_artist_data(row: Any) -> TrackDataWithArtistData:
     return TrackDataWithArtistData(
+        id=int(str(row.id)),
         path=str(row.path),
         album_path=str(row.album_path),
         artist_path=str(row.artist_path),
