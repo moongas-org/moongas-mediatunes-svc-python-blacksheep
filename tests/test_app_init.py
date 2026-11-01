@@ -49,14 +49,15 @@ def test_create_app_missing_required_tables(tmp_path: Path):
         create_app(config)
 
 
-def test_create_app_path_based_schema_requires_rescan(tmp_path: Path, caplog: pytest.LogCaptureFixture):
-    db_file = tmp_path / "path_based.db"
+def test_create_app_requires_album_table(tmp_path: Path):
+    db_file = tmp_path / "missing_album.db"
     with sqlite3.connect(db_file) as conn:
-        conn.execute("CREATE TABLE track (id INTEGER PRIMARY KEY, artistpath TEXT, albumpath TEXT)")
-        conn.execute("CREATE TABLE artist (path TEXT PRIMARY KEY)")
-    with pytest.raises(ValueError, match="missing ID relationship columns"):
+        conn.execute(
+            "CREATE TABLE track (id INTEGER PRIMARY KEY, artistid INTEGER, albumid INTEGER)"
+        )
+        conn.execute("CREATE TABLE artist (id INTEGER PRIMARY KEY)")
+    with pytest.raises(ValueError, match=r"missing required table\(s\): \['album'\]"):
         create_app(MediatunesServiceConfig(mediascan_database_file_path=f"sqlite:///{db_file}"))
-    assert "Rescan with a current mediascan" in caplog.text
 
 
 def test_create_app_valid_database(tmp_path: Path):
@@ -69,6 +70,10 @@ def test_create_app_valid_database(tmp_path: Path):
     conn.execute(
         "CREATE TABLE artist (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
         "countrycode TEXT, regioncode TEXT, city TEXT, languagecode TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE album (id INTEGER PRIMARY KEY, path TEXT, name TEXT, year INTEGER, "
+        "explicitcover BOOLEAN, artistid INTEGER)"
     )
     conn.execute("INSERT INTO artist (path, name) VALUES ('artist1', 'Artist One')")
     conn.execute(

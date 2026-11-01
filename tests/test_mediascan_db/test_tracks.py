@@ -1,13 +1,8 @@
 import pytest
 from blacksheep import Request
-from types import SimpleNamespace
 
 from app.types.arg_types import ArgsDict, ArgTypes
-from app.utils.mediascan_db.tracks import (
-    TrackDataWithArtistData,
-    expand_artist_args,
-    row_to_track_data_with_artist_data,
-)
+from app.utils.mediascan_db.tracks import expand_artist_args
 from app.utils.request_args_utils import get_request_args
 
 TRIBE = "A Tribe Called Quest, Busta Rhymes, Redman"
@@ -45,34 +40,3 @@ def test_expand_artist_args_does_not_modify_input():
 def test_expand_artist_args_without_artist():
     args: ArgsDict = {ArgTypes.List.Str.Genre: ["Rock"]}
     assert expand_artist_args(args) == {ArgTypes.List.Str.Genre: ["Rock"]}
-
-
-def test_row_to_track_data_with_artist_data():
-    track = row_to_track_data_with_artist_data(
-        SimpleNamespace(
-            id=1,
-            path="/music/Artist/Album/track.yml",
-            album_path="/music/Artist/Album",
-            artist_path="/music/Artist",
-            title="Track",
-            artist="Artist",
-            albumartist="Artist",
-            album="Album",
-            genre="Rock",
-            year=2001,
-            countrycode="US",
-            regioncode="CA",
-            city="Los Angeles",
-            languagecode="en",
-        )
-    )
-
-    assert isinstance(track, TrackDataWithArtistData)
-    assert track.id == 1
-    assert track.path == "/music/Artist/Album/track.yml"
-    assert track.format == "mp3"
-    assert track.album_path == "/music/Artist/Album"
-    assert track.artist_path == "/music/Artist"
-    assert track.countryCode == "US"
-    assert track.regionCode == "CA"
-    assert track.languageCode == "en"

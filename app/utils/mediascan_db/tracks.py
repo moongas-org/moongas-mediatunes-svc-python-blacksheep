@@ -1,10 +1,13 @@
 import random
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Tuple, cast
 
 import pandas as pd
 from blacksheep import Application
+from mediascan.types.track.track_data_with_album_and_artist_data import (
+    TrackDataWithAlbumAndArtistData,
+    row_to_track_data_with_album_and_artist_data,
+)
 
 from app.types.arg_types import (
     ArgsDict,
@@ -19,55 +22,13 @@ from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.utils.app_utils import get_config, get_mediascan_db_albums
 
 
-@dataclass
-class TrackDataWithArtistData:
-    """Track data enriched with artist geo fields for API responses."""
-
-    id: int
-    path: str
-    album_path: str
-    artist_path: str
-    size: int
-    format: str
-    title: str
-    artist: str
-    albumartist: str
-    album: str
-    genre: str
-    year: int
-    duration: int
-    countryCode: str = ""
-    regionCode: str = ""
-    city: str = ""
-    languageCode: str = ""
-
-
-def row_to_track_data_with_artist_data(row: Any) -> TrackDataWithArtistData:
-    return TrackDataWithArtistData(
-        id=int(str(row.id)),
-        path=str(row.path),
-        album_path=str(row.album_path),
-        artist_path=str(row.artist_path),
-        size=0,
-        format="mp3",
-        title=str(row.title),
-        artist=str(row.artist),
-        albumartist=str(row.albumartist),
-        album=str(row.album),
-        genre=str(row.genre),
-        year=int(str(row.year)),
-        duration=0,
-        countryCode=str(row.countrycode),
-        regionCode=str(row.regioncode),
-        city=str(row.city),
-        languageCode=str(row.languagecode),
-    )
-
-
-def df_to_track_data_with_artist_data_list(
+def df_to_track_data_with_album_and_artist_data_list(
     df: pd.DataFrame,
-) -> List[TrackDataWithArtistData]:
-    return [row_to_track_data_with_artist_data(row) for row in df.itertuples()]
+) -> List[TrackDataWithAlbumAndArtistData]:
+    return [
+        row_to_track_data_with_album_and_artist_data(row)
+        for row in df.itertuples()
+    ]
 
 
 TRACK_FILTER_COLUMNS: Tuple[Tuple[ArgType, str], ...] = (
@@ -184,11 +145,13 @@ def filter_tracks(
 
 def get_tracks_list(
     app: Application, tracks: pd.DataFrame, args: ArgsDict
-) -> List[TrackDataWithArtistData]:
-    return df_to_track_data_with_artist_data_list(filter_tracks(app, tracks, args))
+) -> List[TrackDataWithAlbumAndArtistData]:
+    return df_to_track_data_with_album_and_artist_data_list(
+        filter_tracks(app, tracks, args)
+    )
 
 
-def get_genres(tracks: List[TrackDataWithArtistData]) -> List[str]:
+def get_genres(tracks: List[TrackDataWithAlbumAndArtistData]) -> List[str]:
     return sorted({track.genre for track in tracks})
 
 
@@ -204,7 +167,7 @@ def get_genre_counts(tracks: pd.DataFrame, sort: str) -> Dict[str, int]:
 
 
 class TracksResult(NamedTuple):
-    tracks: List[TrackDataWithArtistData]
+    tracks: List[TrackDataWithAlbumAndArtistData]
     album: tuple[Any, ...] | None
 
 
@@ -266,7 +229,9 @@ def get_tracks(
     if max_results > 0:
         filtered = filtered.head(max_results)
 
-    return TracksResult(df_to_track_data_with_artist_data_list(filtered), album)
+    return TracksResult(
+        df_to_track_data_with_album_and_artist_data_list(filtered), album
+    )
 
 
 def get_artist_counts(
@@ -294,13 +259,15 @@ def get_word_cloud_data_genres(tracks: pd.DataFrame) -> List[Dict[str, str]]:
     return [
         {"text": genre}
         for genre in get_genres(
-            df_to_track_data_with_artist_data_list(_with_track_columns(tracks))
+            df_to_track_data_with_album_and_artist_data_list(
+                _with_track_columns(tracks)
+            )
         )
     ]
 
 
 def get_cover_path(
-    config: MediatunesServiceConfig, track: TrackDataWithArtistData
+    config: MediatunesServiceConfig, track: TrackDataWithAlbumAndArtistData
 ) -> Path:
     return get_album_cover_path(config, Path(track.album_path))
 

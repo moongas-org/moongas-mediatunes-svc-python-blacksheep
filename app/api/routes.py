@@ -15,6 +15,9 @@ from typing import Any, Dict, List, NamedTuple, cast
 
 from blacksheep import Application, Request, Response, json
 from blacksheep.exceptions import BadRequest, NotFound
+from mediascan.types.track.track_data_with_album_and_artist_data import (
+    TrackDataWithAlbumAndArtistData,
+)
 
 from app.types.arg_types import args_dict_to_str
 from app.utils.app_utils import (
@@ -33,7 +36,6 @@ from app.utils.mediascan_db.artists import (
     get_word_cloud_data_artists,
 )
 from app.utils.mediascan_db.tracks import (
-    TrackDataWithArtistData,
     get_artist_counts,
     get_cover_path,
     get_genre_counts,
@@ -350,7 +352,7 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         cfg = get_config(app)
         args = get_request_args(request)
         app.logger.debug("api/random-track args=%s", args_dict_to_str(args))
-        tracks_list: List[TrackDataWithArtistData] = get_tracks_list(
+        tracks_list: List[TrackDataWithAlbumAndArtistData] = get_tracks_list(
             app,
             get_mediascan_db_tracks_album_artist_joined(app),
             args,

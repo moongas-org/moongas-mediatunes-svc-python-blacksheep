@@ -10,6 +10,9 @@ import pytest
 from blacksheep import Application
 from blacksheep.server.routing import Router
 from blacksheep.testing import TestClient
+from mediascan.types.track.track_data_with_album_and_artist_data import (
+    TrackDataWithAlbumAndArtistData,
+)
 
 from app import create_app
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
@@ -19,7 +22,6 @@ from app.utils.app_utils import (
     get_mediascan_db_albums,
     get_mediascan_db_tracks_album_artist_joined,
 )
-from app.utils.mediascan_db.tracks import TrackDataWithArtistData
 
 
 @pytest.fixture(autouse=True)
@@ -479,12 +481,10 @@ async def test_api_album_matches_id_not_name(db_file: Path):
     }
 
 
-@pytest.mark.parametrize("metadata", ["empty", "legacy", "unmatched"])
+@pytest.mark.parametrize("metadata", ["empty", "unmatched"])
 async def test_api_album_without_metadata(db_file: Path, metadata: str):
     with sqlite3.connect(db_file) as conn:
-        if metadata == "legacy":
-            conn.execute("DROP TABLE album")
-        elif metadata == "empty":
+        if metadata == "empty":
             conn.execute("DELETE FROM album")
         else:
             conn.execute("UPDATE album SET id = 99")
@@ -682,7 +682,9 @@ async def test_api_track_selection_explicit_cover(
     query: str,
     expected_titles: set[str],
 ):
-    def choose_first(tracks: list[TrackDataWithArtistData]) -> TrackDataWithArtistData:
+    def choose_first(
+        tracks: list[TrackDataWithAlbumAndArtistData],
+    ) -> TrackDataWithAlbumAndArtistData:
         return tracks[0]
 
     monkeypatch.setattr("app.api.routes.random.choice", choose_first)
@@ -698,14 +700,12 @@ async def test_api_track_selection_explicit_cover(
 
 
 @pytest.mark.parametrize("explicit_cover", ["true", "false"])
-@pytest.mark.parametrize("metadata", ["empty", "legacy", "unmatched"])
+@pytest.mark.parametrize("metadata", ["empty", "unmatched"])
 async def test_api_random_track_explicit_cover_without_metadata(
     db_file: Path, explicit_cover: str, metadata: str
 ):
     with sqlite3.connect(db_file) as conn:
-        if metadata == "legacy":
-            conn.execute("DROP TABLE album")
-        elif metadata == "empty":
+        if metadata == "empty":
             conn.execute("DELETE FROM album")
         else:
             conn.execute("UPDATE album SET id = 99")

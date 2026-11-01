@@ -96,7 +96,7 @@ def create_app(config: MediatunesServiceConfig) -> Application:
         table_names = inspector.get_table_names()
         app.logger.debug("Discovered database tables: %s", table_names)
 
-        required_tables = ["track", "artist"]
+        required_tables = ["track", "artist", "album"]
         missing_tables = [t for t in required_tables if t not in table_names]
         if missing_tables:
             error_msg = (
@@ -122,42 +122,15 @@ def create_app(config: MediatunesServiceConfig) -> Application:
                 "Database has no 'mediafile' table; mediafile requests will return no entries."
             )
             mediafiles_df = pd.DataFrame(columns=["id", "trackid"])
-        missing_ids = [
-            f"track.{column}"
-            for column in ("artistid", "albumid")
-            if column not in tracks_df.columns
-        ]
-        if "id" not in artists_df.columns:
-            missing_ids.append("artist.id")
-        if "album" in table_names and "artistid" not in {
-            column["name"] for column in inspector.get_columns("album")
-        }:
-            missing_ids.append("album.artistid")
-        if missing_ids:
-            raise ValueError(
-                f"Database '{db_path}' is missing ID relationship columns: {missing_ids}. "
-                "Rescan with a current mediascan to generate the ID-based schema."
-            )
-        album_columns = ["id", "path", "name", "year", "explicitcover"]
-        if "album" in table_names:
-            albums_df = strings_as_object(get_df_album_artist_joined(engine))
-            joined_df = strings_as_object(
-                get_df_track_album_artist_joined(engine)
-            )
-        else:
-            app.logger.warning(
-                "Database has no 'album' table; album metadata requests will return 404. "
-                "Rescan with a current mediascan to enable album metadata."
-            )
-            albums_df = pd.DataFrame(columns=album_columns)
-            joined_df = tracks_df.copy()
-            for column in ("countrycode", "regioncode", "city", "languagecode"):
-                joined_df[column] = ""
-            joined_df["album_path"] = ""
-            joined_df["artist_path"] = ""
+        albums_df = strings_as_object(get_df_album_artist_joined(engine))
+        tracks_album_artist_joined_df = strings_as_object(
+            get_df_track_album_artist_joined(engine)
+        )
         app.logger.info(
             "Successfully loaded %d tracks, %d artists, %d albums and %d mediafiles from database.",
-            len(tracks_df), len(artists_df), len(albums_df),
+            len(tracks_df),
+            len(artists_df),
+            len(albums_df),
             len(mediafiles_df),
         )
     except SQLAlchemyError as ex:
@@ -184,7 +157,7 @@ def create_app(config: MediatunesServiceConfig) -> Application:
             db_artists=artists_df,
             db_albums=albums_df,
             db_mediafiles=mediafiles_df,
-            db_tracks_album_artist_joined=joined_df,
+            db_tracks_album_artist_joined=tracks_album_artist_joined_df,
             static_folder=static_folder,
             logger=app.logger,
         )
