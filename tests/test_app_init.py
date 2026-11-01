@@ -11,6 +11,7 @@ from app.utils.app_utils import (
     get_mediascan_db_albums,
     get_mediascan_db_artists,
     get_mediascan_db_mediafiles,
+    get_mediascan_db_trackstreaming,
     get_mediascan_db_tracks,
     get_mediascan_db_tracks_album_artist_joined,
 )
@@ -95,6 +96,7 @@ def test_create_app_valid_database(tmp_path: Path):
     assert len(artists_df) == 1
     assert get_mediascan_db_albums(app).empty
     assert get_mediascan_db_mediafiles(app).empty
+    assert get_mediascan_db_trackstreaming(app).empty
     # String columns are loaded as object dtype for fast row access under pandas 3.
     assert not any(isinstance(dtype, pd.StringDtype) for dtype in tracks_df.dtypes)
     assert not any(isinstance(dtype, pd.StringDtype) for dtype in artists_df.dtypes)

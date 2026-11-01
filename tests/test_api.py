@@ -20,6 +20,8 @@ from app.types.config.server_config import ServerConfig
 from app.utils.app_utils import (
     get_config,
     get_mediascan_db_albums,
+    get_mediascan_db_mediafiles,
+    get_mediascan_db_trackstreaming,
     get_mediascan_db_tracks_album_artist_joined,
 )
 
@@ -78,6 +80,13 @@ def db_file(tmp_path: Path) -> Path:
             size INTEGER
         )
         """)
+    conn.execute("""
+        CREATE TABLE trackstreaming (
+            trackid INTEGER NOT NULL,
+            streamingservice TEXT NOT NULL,
+            streamingtrackid TEXT NOT NULL
+        )
+        """)
     conn.execute(
         "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
         "VALUES ('/data/Music/A/Artist One', 'Artist One', 'US', 'US-AL', 'Huntsville', 'en')"
@@ -102,6 +111,14 @@ def db_file(tmp_path: Path) -> Path:
     conn.execute(
         "INSERT INTO mediafile (id, trackid, path, size) "
         "VALUES (3, 1, '/data/Music/A/Artist One/Album [2000]/alternate.mp3', 512)"
+    )
+    conn.execute(
+        "INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) "
+        "VALUES (1, 'spotify', 'spotify-track-1')"
+    )
+    conn.execute(
+        "INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) "
+        "VALUES (2, 'apple-music', 'apple-track-2')"
     )
     conn.commit()
     conn.close()
@@ -328,6 +345,31 @@ async def test_api_albums(app: Application):
     assert data["albums"][0]["explicitCover"] is True
 
 
+async def test_get_mediascan_db_mediafiles_returns_loaded_table(app: Application):
+    mediafiles = get_mediascan_db_mediafiles(app)
+
+    assert mediafiles.to_dict(orient="records") == [
+        {
+            "id": 1,
+            "trackid": 1,
+            "path": "/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3",
+            "size": 1024,
+        },
+        {
+            "id": 2,
+            "trackid": 2,
+            "path": "/data/Music/A/Artist One/Album [2000]/02 - Track 2.mp3",
+            "size": 2048,
+        },
+        {
+            "id": 3,
+            "trackid": 1,
+            "path": "/data/Music/A/Artist One/Album [2000]/alternate.mp3",
+            "size": 512,
+        },
+    ]
+
+
 async def test_api_mediafiles_filters_by_track_id_only(app: Application):
     response = await TestClient(app).get("/api/mediafiles?trackid=1")
 
@@ -352,6 +394,28 @@ async def test_api_mediafiles_filters_by_track_id_only(app: Application):
 @pytest.mark.parametrize("query", ["", "?trackid=nope"])
 async def test_api_mediafiles_requires_integer_track_id(app: Application, query: str):
     response = await TestClient(app).get("/api/mediafiles" + query)
+
+    assert response.status == 400
+
+
+async def test_api_trackstreaming_filters_by_track_id_only(app: Application):
+    assert get_mediascan_db_trackstreaming(app)["trackid"].tolist() == [1, 2]
+
+    response = await TestClient(app).get("/api/trackstreaming?trackid=1")
+
+    assert response.status == 200
+    assert (await response.json())["trackstreaming"] == [
+        {
+            "trackid": 1,
+            "streamingservice": "spotify",
+            "streamingtrackid": "spotify-track-1",
+        }
+    ]
+
+
+@pytest.mark.parametrize("query", ["", "?trackid=nope"])
+async def test_api_trackstreaming_requires_integer_track_id(app: Application, query: str):
+    response = await TestClient(app).get("/api/trackstreaming" + query)
 
     assert response.status == 400
 

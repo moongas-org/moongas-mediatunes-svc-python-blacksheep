@@ -25,6 +25,7 @@ from app.utils.app_utils import (
     get_mediascan_db_albums,
     get_mediascan_db_artists,
     get_mediascan_db_mediafiles,
+    get_mediascan_db_trackstreaming,
     get_mediascan_db_tracks_album_artist_joined,
 )
 from app.utils.mediascan_db.albums import get_album, get_albums
@@ -250,6 +251,24 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         mediafiles_df = get_mediascan_db_mediafiles(app)
         matching_mediafiles = mediafiles_df.loc[mediafiles_df["trackid"] == track_id]
         return json({"mediafiles": matching_mediafiles.to_dict(orient="records")})
+
+    @app.router.get(url_prefix + "/trackstreaming")
+    async def trackstreaming(request: Request) -> Response:
+        track_ids = request.query.get("trackid")
+        if not track_ids:
+            raise BadRequest("A trackid query parameter is required.")
+        try:
+            track_id = int(track_ids[0])
+        except ValueError as ex:
+            raise BadRequest("trackid must be an integer.") from ex
+
+        trackstreaming_df = get_mediascan_db_trackstreaming(app)
+        matching_trackstreaming = trackstreaming_df.loc[
+            trackstreaming_df["trackid"] == track_id
+        ]
+        return json(
+            {"trackstreaming": matching_trackstreaming.to_dict(orient="records")}
+        )
 
     @app.router.get(url_prefix + "/artists")
     async def artists(request: Request) -> Response:
