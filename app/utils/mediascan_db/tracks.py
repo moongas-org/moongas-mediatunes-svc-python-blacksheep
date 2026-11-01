@@ -25,9 +25,13 @@ from app.utils.app_utils import get_config, get_mediascan_db_albums
 def df_to_track_data_with_album_and_artist_data_list(
     df: pd.DataFrame,
 ) -> List[TrackDataWithAlbumAndArtistData]:
+    rows = df.copy()
+    rows["track_year"] = pd.to_numeric(
+        rows["track_year"].replace("", pd.NA), errors="raise"
+    )
     return [
         row_to_track_data_with_album_and_artist_data(row)
-        for row in df.itertuples()
+        for row in rows.itertuples()
     ]
 
 
