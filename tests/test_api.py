@@ -10,7 +10,9 @@ import pytest
 from blacksheep import Application
 from blacksheep.server.routing import Router
 from blacksheep.testing import TestClient
-from mediascan.types.track.track_data_with_album_and_artist_data import (
+from mediascan.utils.db.mediafile.mediafile_data import MediaFileData
+from mediascan.utils.db.trackstreaming.trackstreaming_data import TrackStreamingData
+from mediascan.utils.db.track.track_data_with_album_and_artist_data import (
     TrackDataWithAlbumAndArtistData,
 )
 
@@ -24,6 +26,8 @@ from app.utils.app_utils import (
     get_mediascan_db_trackstreaming,
     get_mediascan_db_tracks_album_artist_joined,
 )
+from app.utils.mediascan_db.mediafiles import get_mediafiles
+from app.utils.mediascan_db.trackstreaming import get_trackstreaming
 
 
 @pytest.fixture(autouse=True)
@@ -75,9 +79,21 @@ def db_file(tmp_path: Path) -> Path:
     conn.execute("""
         CREATE TABLE mediafile (
             id INTEGER PRIMARY KEY,
+            albumpath TEXT,
+            artistpath TEXT,
+            title TEXT,
+            artist TEXT,
+            albumartist TEXT,
+            album TEXT,
+            genre TEXT,
+            year INTEGER,
+            artistid INTEGER,
+            albumid INTEGER,
             trackid INTEGER,
             path TEXT,
-            size INTEGER
+            size INTEGER,
+            format TEXT,
+            duration REAL
         )
         """)
     conn.execute("""
@@ -351,23 +367,98 @@ async def test_get_mediascan_db_mediafiles_returns_loaded_table(app: Application
     assert mediafiles.to_dict(orient="records") == [
         {
             "id": 1,
+            "albumpath": None,
+            "artistpath": None,
+            "title": None,
+            "artist": None,
+            "albumartist": None,
+            "album": None,
+            "genre": None,
+            "year": None,
+            "artistid": None,
+            "albumid": None,
             "trackid": 1,
             "path": "/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3",
             "size": 1024,
+            "format": None,
+            "duration": None,
         },
         {
             "id": 2,
+            "albumpath": None,
+            "artistpath": None,
+            "title": None,
+            "artist": None,
+            "albumartist": None,
+            "album": None,
+            "genre": None,
+            "year": None,
+            "artistid": None,
+            "albumid": None,
             "trackid": 2,
             "path": "/data/Music/A/Artist One/Album [2000]/02 - Track 2.mp3",
             "size": 2048,
+            "format": None,
+            "duration": None,
         },
         {
             "id": 3,
+            "albumpath": None,
+            "artistpath": None,
+            "title": None,
+            "artist": None,
+            "albumartist": None,
+            "album": None,
+            "genre": None,
+            "year": None,
+            "artistid": None,
+            "albumid": None,
             "trackid": 1,
             "path": "/data/Music/A/Artist One/Album [2000]/alternate.mp3",
             "size": 512,
+            "format": None,
+            "duration": None,
         },
     ]
+
+
+@pytest.mark.parametrize("track_id, expected_ids", [(1, [1, 3]), (2, [2]), (99, [])])
+async def test_get_mediafiles_filters_without_changing_loaded_table(
+    app: Application, track_id: int, expected_ids: list[int]
+):
+    result = get_mediafiles(app, track_id)
+
+    assert [mediafile.id for mediafile in result] == expected_ids
+    assert get_mediascan_db_mediafiles(app)["id"].tolist() == [1, 2, 3]
+    assert all(isinstance(mediafile, MediaFileData) for mediafile in result)
+
+
+@pytest.mark.parametrize(
+    "track_id, expected_services",
+    [(1, ["spotify"]), (2, ["apple-music"]), (99, [])],
+)
+async def test_get_trackstreaming_filters_without_changing_loaded_table(
+    app: Application, track_id: int, expected_services: list[str]
+):
+    result = get_trackstreaming(app, track_id)
+
+    assert [
+        streaming_data.streaming_service for streaming_data in result
+    ] == expected_services
+    assert get_mediascan_db_trackstreaming(app)["trackid"].tolist() == [1, 2]
+    assert all(
+        isinstance(streaming_data, TrackStreamingData) for streaming_data in result
+    )
+
+
+@pytest.mark.parametrize("endpoint", ["mediafiles", "trackstreaming"])
+async def test_api_track_resources_returns_empty_for_unknown_track(
+    app: Application, endpoint: str
+):
+    response = await TestClient(app).get(f"/api/{endpoint}?trackid=99")
+
+    assert response.status == 200
+    assert await response.json() == {endpoint: []}
 
 
 async def test_api_mediafiles_filters_by_track_id_only(app: Application):
@@ -378,15 +469,39 @@ async def test_api_mediafiles_filters_by_track_id_only(app: Application):
     assert sorted(mediafiles, key=lambda mediafile: mediafile["id"]) == [
         {
             "id": 1,
+            "album_path": None,
+            "artist_path": None,
+            "title": None,
+            "artist": None,
+            "albumartist": None,
+            "album": None,
+            "genre": None,
+            "year": None,
+            "artistid": None,
+            "albumid": None,
             "trackid": 1,
             "path": "/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3",
             "size": 1024,
+            "format": None,
+            "duration": None,
         },
         {
             "id": 3,
+            "album_path": None,
+            "artist_path": None,
+            "title": None,
+            "artist": None,
+            "albumartist": None,
+            "album": None,
+            "genre": None,
+            "year": None,
+            "artistid": None,
+            "albumid": None,
             "trackid": 1,
             "path": "/data/Music/A/Artist One/Album [2000]/alternate.mp3",
             "size": 512,
+            "format": None,
+            "duration": None,
         },
     ]
 
@@ -406,9 +521,9 @@ async def test_api_trackstreaming_filters_by_track_id_only(app: Application):
     assert response.status == 200
     assert (await response.json())["trackstreaming"] == [
         {
-            "trackid": 1,
-            "streamingservice": "spotify",
-            "streamingtrackid": "spotify-track-1",
+            "track_id": 1,
+            "streaming_service": "spotify",
+            "streaming_track_id": "spotify-track-1",
         }
     ]
 

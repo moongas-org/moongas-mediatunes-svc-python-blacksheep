@@ -1,6 +1,7 @@
 import pytest
-import pandas as pd
 from blacksheep import Request
+from mediascan.utils.db.mediascan_db_loader import get_df_track_album_artist_joined
+from sqlalchemy import create_engine, text
 
 from app.types.arg_types import ArgsDict, ArgTypes
 from app.utils.mediascan_db.tracks import (
@@ -46,28 +47,51 @@ def test_expand_artist_args_without_artist():
     assert expand_artist_args(args) == {ArgTypes.List.Str.Genre: ["Rock"]}
 
 
-def test_track_dataframe_conversion_accepts_text_year():
-    tracks = pd.DataFrame(
-        [
-            {
-                "track_id": 1,
-                "track_path": "/music/Artist/Album/track.mp3",
-                "album_path": "/music/Artist/Album",
-                "artist_path": "/music/Artist",
-                "title": "Track",
-                "artist": "Artist",
-                "albumartist": "Artist",
-                "album": "Album",
-                "track_genre": "Rock",
-                "track_year": "2000",
-                "countrycode": "US",
-                "regioncode": "CA",
-                "city": "Los Angeles",
-                "languagecode": "en",
-            }
-        ]
-    )
+@pytest.mark.parametrize("year, expected_year", [("2000", 2000), ("", None)])
+def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: int | None):
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE TABLE track (id INTEGER PRIMARY KEY, path TEXT, albumid INTEGER, "
+                "artistid INTEGER, title TEXT, artist TEXT, albumartist TEXT, album TEXT, "
+                "genre TEXT, year TEXT)"
+            ))
+            conn.execute(text(
+                "CREATE TABLE album (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
+                "year INTEGER, explicitcover BOOLEAN, genre TEXT, artistid INTEGER)"
+            ))
+            conn.execute(text(
+                "CREATE TABLE artist (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
+                "countrycode TEXT, regioncode TEXT, city TEXT, languagecode TEXT)"
+            ))
+            conn.execute(text(
+                "INSERT INTO artist VALUES "
+                "(1, '/music/Artist', 'Artist', 'US', 'CA', 'Los Angeles', 'en')"
+            ))
+            conn.execute(text(
+                "INSERT INTO album VALUES "
+                "(1, '/music/Artist/Album', 'Album', 2000, 0, 'Rock', 1)"
+            ))
+            conn.execute(
+                text(
+                    "INSERT INTO track VALUES "
+                    "(1, '/music/Artist/Album/track.mp3', 1, 1, 'Track', 'Artist', "
+                    "'Artist', 'Album', 'Rock', :year)"
+                ),
+                {"year": year},
+            )
 
-    [track] = df_to_track_data_with_album_and_artist_data_list(tracks)
+        tracks = get_df_track_album_artist_joined(engine)
+        [track] = df_to_track_data_with_album_and_artist_data_list(tracks)
+    finally:
+        engine.dispose()
 
-    assert track.year == 2000
+    assert track.year == expected_year
+    assert track.id == 1
+    assert track.artistid == 1
+    assert track.albumid == 1
+    assert track.path == "/music/Artist/Album/track.mp3"
+    assert track.album_path == "/music/Artist/Album"
+    assert track.artist_path == "/music/Artist"
+    assert track.genre == "Rock"

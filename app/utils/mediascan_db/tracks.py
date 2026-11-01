@@ -4,7 +4,7 @@ from typing import Any, Dict, List, NamedTuple, Tuple, cast
 
 import pandas as pd
 from blacksheep import Application
-from mediascan.types.track.track_data_with_album_and_artist_data import (
+from mediascan.utils.db.track.track_data_with_album_and_artist_data import (
     TrackDataWithAlbumAndArtistData,
     row_to_track_data_with_album_and_artist_data,
 )

@@ -15,7 +15,7 @@ from typing import Any, Dict, List, NamedTuple, cast
 
 from blacksheep import Application, Request, Response, json
 from blacksheep.exceptions import BadRequest, NotFound
-from mediascan.types.track.track_data_with_album_and_artist_data import (
+from mediascan.utils.db.track.track_data_with_album_and_artist_data import (
     TrackDataWithAlbumAndArtistData,
 )
 
@@ -24,8 +24,6 @@ from app.utils.app_utils import (
     get_config,
     get_mediascan_db_albums,
     get_mediascan_db_artists,
-    get_mediascan_db_mediafiles,
-    get_mediascan_db_trackstreaming,
     get_mediascan_db_tracks_album_artist_joined,
 )
 from app.utils.mediascan_db.albums import get_album, get_albums
@@ -36,6 +34,7 @@ from app.utils.mediascan_db.artists import (
     get_region_code_name_map,
     get_word_cloud_data_artists,
 )
+from app.utils.mediascan_db.mediafiles import get_mediafiles
 from app.utils.mediascan_db.tracks import (
     get_artist_counts,
     get_cover_path,
@@ -44,6 +43,7 @@ from app.utils.mediascan_db.tracks import (
     get_tracks_list,
     get_word_cloud_data_genres,
 )
+from app.utils.mediascan_db.trackstreaming import get_trackstreaming
 from app.utils.request_args_utils import get_request_args
 
 
@@ -248,9 +248,14 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         except ValueError as ex:
             raise BadRequest("trackid must be an integer.") from ex
 
-        mediafiles_df = get_mediascan_db_mediafiles(app)
-        matching_mediafiles = mediafiles_df.loc[mediafiles_df["trackid"] == track_id]
-        return json({"mediafiles": matching_mediafiles.to_dict(orient="records")})
+        matching_mediafiles = get_mediafiles(app, track_id)
+        return json(
+            {
+                "mediafiles": [
+                    asdict(mediafile) for mediafile in matching_mediafiles
+                ]
+            }
+        )
 
     @app.router.get(url_prefix + "/trackstreaming")
     async def trackstreaming(request: Request) -> Response:
@@ -262,12 +267,14 @@ def register_routes(app: Application, url_prefix: str = "") -> None:
         except ValueError as ex:
             raise BadRequest("trackid must be an integer.") from ex
 
-        trackstreaming_df = get_mediascan_db_trackstreaming(app)
-        matching_trackstreaming = trackstreaming_df.loc[
-            trackstreaming_df["trackid"] == track_id
-        ]
+        matching_trackstreaming = get_trackstreaming(app, track_id)
         return json(
-            {"trackstreaming": matching_trackstreaming.to_dict(orient="records")}
+            {
+                "trackstreaming": [
+                    asdict(streaming_data)
+                    for streaming_data in matching_trackstreaming
+                ]
+            }
         )
 
     @app.router.get(url_prefix + "/artists")
