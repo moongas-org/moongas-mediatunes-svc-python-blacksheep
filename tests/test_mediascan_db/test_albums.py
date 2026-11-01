@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from blacksheep import Application
+from blacksheep.server.routing import Router
 
 from app.types.album_info import AlbumInfo
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
@@ -24,7 +25,7 @@ def _patch_config(
 def test_get_albums_keeps_artist_aligned_with_duplicate_indexes(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    app = Application()
+    app = Application(router=Router())
     albums = pd.DataFrame(
         [
             {
@@ -76,7 +77,7 @@ def test_get_albums_keeps_artist_aligned_with_duplicate_indexes(
 def test_get_albums_returns_empty_for_empty_dataframe(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    app = Application()
+    app = Application(router=Router())
     config = MediatunesServiceConfig(max_results_album_covers=0)
     _patch_config(monkeypatch, app, config)
 
