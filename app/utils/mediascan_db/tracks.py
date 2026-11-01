@@ -156,7 +156,7 @@ def get_tracks_list(
 
 
 def get_genres(tracks: List[TrackDataWithAlbumAndArtistData]) -> List[str]:
-    return sorted({track.genre for track in tracks})
+    return sorted({track.genre for track in tracks if track.genre is not None})
 
 
 def get_genre_counts(tracks: pd.DataFrame, sort: str) -> Dict[str, int]:
@@ -273,6 +273,8 @@ def get_word_cloud_data_genres(tracks: pd.DataFrame) -> List[Dict[str, str]]:
 def get_cover_path(
     config: MediatunesServiceConfig, track: TrackDataWithAlbumAndArtistData
 ) -> Path:
+    if track.album_path is None:
+        raise ValueError("Track has no album path; cannot resolve album cover.")
     return get_album_cover_path(config, Path(track.album_path))
 
 
