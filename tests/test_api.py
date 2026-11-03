@@ -51,7 +51,8 @@ def db_file(tmp_path: Path) -> Path:
             albumartist TEXT,
             album TEXT,
             genre TEXT,
-            year TEXT
+            year TEXT,
+            hasspotify BOOLEAN
         )
         """)
     conn.execute("""
@@ -108,9 +109,9 @@ def db_file(tmp_path: Path) -> Path:
         "VALUES ('/data/Music/A/Artist One', 'Artist One', 'US', 'US-AL', 'Huntsville', 'en')"
     )
     conn.execute(
-        "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year) "
+        "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year, hasspotify) "
         "VALUES (1, '/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3', "
-        "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000')"
+        "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000', TRUE)"
     )
     conn.execute(
         "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
@@ -172,6 +173,7 @@ async def test_api_tracks(app: Application):
     assert data["files"][0]["id"] == 1
     assert data["files"][0]["title"] == "Track 1"
     assert data["files"][0]["genre"] == "Rock"
+    assert data["files"][0]["hasspotify"] is True
     assert data["album"]["name"] == "Album Metadata Name"
 
 

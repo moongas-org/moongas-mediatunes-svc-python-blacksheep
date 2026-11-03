@@ -115,6 +115,7 @@ contains that album's metadata in the same shape as `/api/album`
 (`id`, `path`, `name`, `year`, `explicitCover`); otherwise it is `null`. At most
 one album is looked up per request, so the tracks page does not need a separate
 `/api/album` call to decide whether to show cover art.
+Each file object also exposes the track table's `hasspotify` boolean.
 
 The `/api/albums`, `/api/album`, `/api/tracks`, and `/api/random-track` endpoints
 accept `explicitCover=true` or
@@ -126,7 +127,7 @@ this filter before selecting a random track. With an explicit-cover filter,
 tracks without matching album metadata are excluded; without the filter, their
 existing behavior is unchanged. No matching random-track candidates returns HTTP 404.
 
-The service requires `mediascan>=1.2.5` and ID-based relationships:
+The service requires `mediascan>=1.2.8` and ID-based relationships:
 `track.artistid` references `artist.id`, and `track.albumid` references `album.id`.
 When an `album` table is present, `album.artistid` references `artist.id`.
 The joined data is loaded through `mediascan.utils.db.mediascan_db_loader`;

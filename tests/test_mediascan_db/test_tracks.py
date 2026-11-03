@@ -55,7 +55,7 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
             conn.execute(text(
                 "CREATE TABLE track (id INTEGER PRIMARY KEY, path TEXT, albumid INTEGER, "
                 "artistid INTEGER, title TEXT, artist TEXT, albumartist TEXT, album TEXT, "
-                "genre TEXT, year TEXT)"
+                "genre TEXT, year TEXT, hasspotify BOOLEAN)"
             ))
             conn.execute(text(
                 "CREATE TABLE album (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
@@ -77,7 +77,7 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
                 text(
                     "INSERT INTO track VALUES "
                     "(1, '/music/Artist/Album/track.mp3', 1, 1, 'Track', 'Artist', "
-                    "'Artist', 'Album', 'Rock', :year)"
+                    "'Artist', 'Album', 'Rock', :year, TRUE)"
                 ),
                 {"year": year},
             )
@@ -92,6 +92,7 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
     assert track.artistid == 1
     assert track.albumid == 1
     assert track.path == "/music/Artist/Album/track.mp3"
+    assert track.hasspotify is True
     assert track.album_path == "/music/Artist/Album"
     assert track.artist_path == "/music/Artist"
     assert track.genre == "Rock"
