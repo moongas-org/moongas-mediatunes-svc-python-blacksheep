@@ -8,6 +8,7 @@ class ArgType(StrEnum):
 
 class ArgTypeBoolean(ArgType):
     ExplicitCover = "explicitCover"
+    HasSpotify = "hasspotify"
 
 
 class ArgTypeScalarInt(ArgType):
@@ -52,6 +53,7 @@ class ArgTypeUtil:
     def is_scalar(cls, arg_type: ArgType) -> bool:
         return arg_type in (
             ArgTypes.Boolean.ExplicitCover,
+            ArgTypes.Boolean.HasSpotify,
             ArgTypes.Scalar.Int.MinYear,
             ArgTypes.Scalar.Int.MaxYear,
             ArgTypes.Scalar.Enum.Sort,

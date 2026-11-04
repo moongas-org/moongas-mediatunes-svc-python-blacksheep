@@ -101,7 +101,8 @@ def db_file(tmp_path: Path) -> Path:
         CREATE TABLE trackstreaming (
             trackid INTEGER NOT NULL,
             streamingservice TEXT NOT NULL,
-            streamingtrackid TEXT NOT NULL
+            streamingtrackid TEXT NOT NULL,
+            streamingtrackurl TEXT
         )
         """)
     conn.execute(
@@ -130,12 +131,14 @@ def db_file(tmp_path: Path) -> Path:
         "VALUES (3, 1, '/data/Music/A/Artist One/Album [2000]/alternate.mp3', 512)"
     )
     conn.execute(
-        "INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) "
-        "VALUES (1, 'spotify', 'spotify-track-1')"
+        "INSERT INTO trackstreaming "
+        "(trackid, streamingservice, streamingtrackid, streamingtrackurl) "
+        "VALUES (1, 'spotify', 'spotify-track-1', 'https://open.spotify.com/track/spotify-track-1')"
     )
     conn.execute(
-        "INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) "
-        "VALUES (2, 'apple-music', 'apple-track-2')"
+        "INSERT INTO trackstreaming "
+        "(trackid, streamingservice, streamingtrackid, streamingtrackurl) "
+        "VALUES (2, 'apple-music', 'apple-track-2', 'https://music.apple.com/track/apple-track-2')"
     )
     conn.commit()
     conn.close()
@@ -184,6 +187,29 @@ async def test_api_tracks_filtered(app: Application):
     data = await resp.json()
     assert len(data["files"]) == 0
     assert data["album"] is None
+
+
+@pytest.mark.parametrize("value, expected_count", [("true", 1), ("1", 1), ("false", 0), ("0", 0)])
+async def test_api_tracks_hasspotify(app: Application, value: str, expected_count: int):
+    client = TestClient(app)
+    response = await client.get("/api/tracks?hasspotify=" + value)
+    assert response.status == 200
+    data = await response.json()
+    assert len(data["files"]) == expected_count
+    if expected_count:
+        assert data["files"][0]["hasspotify"] is True
+    else:
+        assert data["album"] is None
+
+    response = await client.get("/api/random-track?hasspotify=" + value)
+    assert response.status == (200 if expected_count else 404)
+
+
+@pytest.mark.parametrize("endpoint", ["tracks", "random-track"])
+@pytest.mark.parametrize("value", ["", "yes"])
+async def test_api_invalid_hasspotify(app: Application, endpoint: str, value: str):
+    response = await TestClient(app).get(f"/api/{endpoint}?hasspotify={value}")
+    assert response.status == 400
 
 
 async def test_api_relations_use_ids_after_paths_change(db_file: Path):
@@ -350,6 +376,24 @@ async def test_api_tracks_max_results_after_sorting(multi_album_app: Application
     assert [track["title"] for track in tracks] == ["Other Track"]
 
 
+@pytest.mark.parametrize(
+    "query, expected_title",
+    [("hasspotify=true", "Track 1"), ("hasspotify=false", "Other Track"), ("", "Other Track")],
+)
+async def test_api_tracks_hasspotify_before_limit(
+    multi_album_app: Application, query: str, expected_title: str
+):
+    tracks = get_mediascan_db_tracks_album_artist_joined(multi_album_app)
+    tracks["hasspotify"] = tracks["title"] == "Track 1"
+    tracks["track_year"] = tracks["title"].map(
+        {"Track 1": "1990", "Other Track": "2010", "Second Track": "2000"}
+    )
+    get_config(multi_album_app).max_results = 1
+    response = await TestClient(multi_album_app).get("/api/tracks?sort=year&" + query)
+    assert response.status == 200
+    assert [track["title"] for track in (await response.json())["files"]] == [expected_title]
+
+
 async def test_api_albums(app: Application):
     client = TestClient(app)
     resp = await client.get("/api/albums")
@@ -447,6 +491,14 @@ async def test_get_trackstreaming_filters_without_changing_loaded_table(
     assert [
         streaming_data.streaming_service for streaming_data in result
     ] == expected_services
+    assert [
+        streaming_data.streaming_track_url for streaming_data in result
+    ] == [
+        "https://open.spotify.com/track/spotify-track-1"
+        if service == "spotify"
+        else "https://music.apple.com/track/apple-track-2"
+        for service in expected_services
+    ]
     assert get_mediascan_db_trackstreaming(app)["trackid"].tolist() == [1, 2]
     assert all(
         isinstance(streaming_data, TrackStreamingData) for streaming_data in result
@@ -526,6 +578,7 @@ async def test_api_trackstreaming_filters_by_track_id_only(app: Application):
             "track_id": 1,
             "streaming_service": "spotify",
             "streaming_track_id": "spotify-track-1",
+            "streaming_track_url": "https://open.spotify.com/track/spotify-track-1",
         }
     ]
 

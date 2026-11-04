@@ -15,6 +15,7 @@ from app.types.arg_types import (
 
 REQUEST_ARG_TYPES: List[ArgType] = [
     ArgTypes.Boolean.ExplicitCover,
+    ArgTypes.Boolean.HasSpotify,
     ArgTypes.List.Str.Genre,
     ArgTypes.List.Str.Artist,
     ArgTypes.List.Str.AlbumArtist,

@@ -1,5 +1,6 @@
+import pandas as pd
 import pytest
-from blacksheep import Request
+from blacksheep import Application, Request
 from mediascan.utils.db.mediascan_db_loader import get_df_track_album_artist_joined
 from sqlalchemy import create_engine, text
 
@@ -7,6 +8,7 @@ from app.types.arg_types import ArgsDict, ArgTypes
 from app.utils.mediascan_db.tracks import (
     df_to_track_data_with_album_and_artist_data_list,
     expand_artist_args,
+    filter_tracks,
 )
 from app.utils.request_args_utils import get_request_args
 
@@ -45,6 +47,30 @@ def test_expand_artist_args_does_not_modify_input():
 def test_expand_artist_args_without_artist():
     args: ArgsDict = {ArgTypes.List.Str.Genre: ["Rock"]}
     assert expand_artist_args(args) == {ArgTypes.List.Str.Genre: ["Rock"]}
+
+
+@pytest.mark.parametrize(
+    "query, expected_ids",
+    [
+        ("", [1, 2, 3]),
+        ("hasspotify=true", [1, 3]),
+        ("hasspotify=false", [2]),
+        ("hasspotify=1&genre=Jazz", [3]),
+        ("hasspotify=0&genre=Rock", []),
+    ],
+)
+@pytest.mark.parametrize("spotify_values", [[1, 0, 1], [True, False, True]])
+def test_filter_tracks_hasspotify(
+    query: str, expected_ids: list[int], spotify_values: list[int] | list[bool]
+):
+    tracks = pd.DataFrame(
+        {"id": [1, 2, 3], "hasspotify": spotify_values, "genre": ["Rock", "Jazz", "Jazz"]},
+        index=[4, 8, 12],
+    )
+    args = get_request_args(Request("GET", f"/tracks?{query}".encode(), []))
+    filtered = filter_tracks(Application(), tracks, args)
+    assert filtered["id"].tolist() == expected_ids
+    assert tracks["id"].tolist() == [1, 2, 3]
 
 
 @pytest.mark.parametrize("year, expected_year", [("2000", 2000), ("", None)])

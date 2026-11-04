@@ -117,6 +117,13 @@ one album is looked up per request, so the tracks page does not need a separate
 `/api/album` call to decide whether to show cover art.
 Each file object also exposes the track table's `hasspotify` boolean.
 
+`GET /api/tracks`, `/api/album`, and `/api/random-track` accept
+`hasspotify=true` or `hasspotify=false` to filter by the track table's Spotify
+flag. Values `1` and `0` are also accepted (case-insensitive); omitting the
+argument includes either value, and invalid or empty values return HTTP 400.
+The filter combines with other track filters and is applied before `maxResults`
+or random selection. For example: `/api/tracks?hasspotify=true&genre=Rock`.
+
 The `/api/albums`, `/api/album`, `/api/tracks`, and `/api/random-track` endpoints
 accept `explicitCover=true` or
 `explicitCover=false`, also accepting `1` and `0` (case-insensitive).
