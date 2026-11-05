@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from blacksheep import Application, Request
+from blacksheep import Application, Request, Router
 from mediascan.utils.db.mediascan_db_loader import get_df_track_album_artist_joined
 from sqlalchemy import create_engine, text
 
@@ -68,7 +68,7 @@ def test_filter_tracks_hasspotify(
         index=[4, 8, 12],
     )
     args = get_request_args(Request("GET", f"/tracks?{query}".encode(), []))
-    filtered = filter_tracks(Application(), tracks, args)
+    filtered = filter_tracks(Application(router=Router()), tracks, args)
     assert filtered["id"].tolist() == expected_ids
     assert tracks["id"].tolist() == [1, 2, 3]
 

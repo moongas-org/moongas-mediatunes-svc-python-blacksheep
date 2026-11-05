@@ -6,6 +6,7 @@ from blacksheep import Application
 from blacksheep.server.routing import Router
 
 from app.types.album_info import AlbumInfo
+from app.types.arg_types import ArgTypes, ArgValues
 from app.types.config.mediatunes_svc_config import MediatunesServiceConfig
 from app.utils.mediascan_db import albums as albums_module
 
@@ -54,7 +55,9 @@ def test_get_albums_keeps_artist_aligned_with_duplicate_indexes(
     config.playback_methods.local.media_path = "/music/"
     _patch_config(monkeypatch, app, config)
 
-    result = albums_module.get_albums(app, albums, {})
+    result = albums_module.get_albums(
+        app, albums, {ArgTypes.Scalar.Enum.Sort: ArgValues.Scalar.Enum.Sort.Artist}
+    )
 
     assert result == [
         AlbumInfo(

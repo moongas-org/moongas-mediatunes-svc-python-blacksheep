@@ -37,7 +37,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "blacksheep>=2.6.3",
+  "blacksheep>=2.6.3,<2.6.4",
   "uvicorn>=0.53.0",
   "mediascan>=1.2.8",
   "dataclass-wizard>=0.39.1",
@@ -55,6 +55,7 @@ mediatunes-svc = "run:main"
 
 [project.optional-dependencies]
 dev = [
+  "pandas-stubs>=3.0.0",
   "ruff>=0.1.0",
   "pytest>=9.1.1",
   "pytest-asyncio>=1.4.0",
@@ -69,6 +70,9 @@ Documentation = "https://github.com/moongas-org/moongas-mediatunes-svc-python-bl
 Repository = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep.git"
 "Bug Tracker" = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep/issues"
 Changelog = "https://github.com/moongas-org/moongas-mediatunes-svc-python-blacksheep/blob/master/CHANGELOG.md"
+
+[tool.uv.sources]
+mediascan = { git = "https://github.com/moongas-org/moongas-mediascan-python.git" }
 
 [tool.setuptools]
 py-modules = ["run"]

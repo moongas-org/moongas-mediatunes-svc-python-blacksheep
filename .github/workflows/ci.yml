@@ -20,29 +20,19 @@ jobs:
       - name: Check out this repository
         uses: actions/checkout@v4
 
-      - name: Check out moongas-mediascan-python
-        uses: actions/checkout@v4
-        with:
-          repository: 'moongas-org/moongas-mediascan-python'
-          path: 'moongas-mediascan-python'
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Upgrade Pip
-        run: |
-          python -m pip install --upgrade pip
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
 
-      - name: Install Local Python Packages
-        run: |
-          python -m pip install pandas-stubs
-          python -m pip install -e ./moongas-mediascan-python
-          python -m pip install -e .[dev]
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
 
       - name: Run pytest
-        run: mkdir -p test-results && python -m pytest -v --junitxml=test-results/pytest.xml
+        run: mkdir -p test-results && uv run --locked pytest -v --junitxml=test-results/pytest.xml
 
       - name: Upload pytest results
         if: always()
@@ -52,8 +42,7 @@ jobs:
           path: test-results/pytest.xml
 
       - name: Lint with ruff
-        run: |
-          ruff check .
+        run: uv run --locked ruff check .
 
   build:
     name: Build package
@@ -68,11 +57,11 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install build
-        run: python -m pip install --upgrade build
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
 
       - name: Build package
-        run: python -m build
+        run: uv build
 
   #    - name: Upload package artifacts
   #      uses: actions/upload-artifact@v4

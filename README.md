@@ -205,7 +205,8 @@ year, use the same `minYear` and `maxYear` value.
 ### Install moongas-org/moongas-mediascan-python from GitHub source 
 - Install the Moongas `mediascan` python package
 ```bash
-pip install git+https://github.com/moongas-org/moongas-mediascan-python.git
+uv venv
+uv pip install git+https://github.com/moongas-org/moongas-mediascan-python.git
 ```
 - Modify the mediascan config (`mediascan-config.yml`) values (`mediadirs` etc.) as needed
 - Run the `mediascan-db` command (requires [go](https://go.dev/doc/install))
@@ -219,13 +220,12 @@ go run cmd/mediascan-db/main.go mediascan-config.yml ../mediascan.db
 ```bash
 git clone git@github.com:moongas-org/moongas-mediatunes-svc-python-blacksheep.git
 cd moongas-mediatunes-svc-python-blacksheep
-python -m pip install .
+uv sync
 ```
 - Configure `mediaPath`, etc. in the [`mediatunes-config.yml`](./mediatunes-config.yml)
 - Run mediatunes-svc
 ```bash
-cd moongas-py-mediatunes-svc-python-blacksheep
-mediatunes-svc mediatunes-config.yml
+uv run mediatunes-svc mediatunes-config.yml
 ```
 
 ### Automatically start and run as a SystemD service
@@ -237,8 +237,7 @@ A systemd unit is provided:
 To set it up:
 
 - Customize the .service file as required
-- Create a compatible Python virtual environment with the necessary dependencies
-- Activate it and install mediatunes-svc
+- Run `uv sync` in the project directory to create the virtual environment and install dependencies
 - Update [`mediatunes-svc.service`](./mediatunes-svc.service) to point to your virtual environment
 - Copy the `.service` file into the systemd system folder to install it as a systemd service
 ```bash
