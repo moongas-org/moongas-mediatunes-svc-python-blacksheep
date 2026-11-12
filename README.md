@@ -225,6 +225,9 @@ git clone git@github.com:moongas-org/moongas-mediatunes-svc-python-blacksheep.gi
 cd moongas-mediatunes-svc-python-blacksheep
 uv sync
 ```
+- For development and CI dependencies, run `uv sync --locked --extra dev`.
+- After changing the project version or dependencies in `pyproject.toml`, run `uv lock`
+  and commit the updated `uv.lock` alongside it. CI uses `--locked` and rejects stale lockfiles.
 - Configure `mediaPath`, etc. in the [`mediatunes-config.yml`](./mediatunes-config.yml)
 - Run mediatunes-svc
 ```bash
