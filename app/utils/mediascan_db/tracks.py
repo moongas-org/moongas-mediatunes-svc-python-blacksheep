@@ -131,9 +131,14 @@ def filter_tracks(
         ]
         tracks = tracks[tracks["albumid"].isin(album_ids)]
     mask = pd.Series(True, index=tracks.index)
-    if ArgTypes.Boolean.HasSpotify in args:
-        has_spotify = cast(bool, args[ArgTypes.Boolean.HasSpotify])
-        mask &= tracks["hasspotify"] == has_spotify
+    for arg_type in (
+        ArgTypes.Boolean.HasSpotify,
+        ArgTypes.Boolean.HasMedia,
+        ArgTypes.Boolean.HasLyricsTxt,
+        ArgTypes.Boolean.HasLyricsLrc,
+    ):
+        if arg_type in args:
+            mask &= tracks[str(arg_type)] == cast(bool, args[arg_type])
     min_year = cast(ArgValueScalarInt, args.get(ArgTypes.Scalar.Int.MinYear, 0))
     max_year = cast(ArgValueScalarInt, args.get(ArgTypes.Scalar.Int.MaxYear, 0))
     if min_year or max_year:

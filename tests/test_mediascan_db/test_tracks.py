@@ -53,20 +53,22 @@ def test_expand_artist_args_without_artist():
     "query, expected_ids",
     [
         ("", [1, 2, 3]),
-        ("hasspotify=true", [1, 3]),
-        ("hasspotify=false", [2]),
-        ("hasspotify=1&genre=Jazz", [3]),
-        ("hasspotify=0&genre=Rock", []),
+        ("{flag}=true", [1, 3]),
+        ("{flag}=false", [2]),
+        ("{flag}=1&genre=Jazz", [3]),
+        ("{flag}=0&genre=Rock", []),
     ],
 )
-@pytest.mark.parametrize("spotify_values", [[1, 0, 1], [True, False, True]])
-def test_filter_tracks_hasspotify(
-    query: str, expected_ids: list[int], spotify_values: list[int] | list[bool]
+@pytest.mark.parametrize("flag_values", [[1, 0, 1], [True, False, True]])
+@pytest.mark.parametrize("flag", ["hasspotify", "hasmedia", "haslyricstxt", "haslyricslrc"])
+def test_filter_tracks_boolean_flag(
+    flag: str, query: str, expected_ids: list[int], flag_values: list[int] | list[bool]
 ):
     tracks = pd.DataFrame(
-        {"id": [1, 2, 3], "hasspotify": spotify_values, "genre": ["Rock", "Jazz", "Jazz"]},
+        {"id": [1, 2, 3], flag: flag_values, "genre": ["Rock", "Jazz", "Jazz"]},
         index=[4, 8, 12],
     )
+    query = query.format(flag=flag)
     args = get_request_args(Request("GET", f"/tracks?{query}".encode(), []))
     filtered = filter_tracks(Application(router=Router()), tracks, args)
     assert filtered["id"].tolist() == expected_ids
@@ -81,7 +83,8 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
             conn.execute(text(
                 "CREATE TABLE track (id INTEGER PRIMARY KEY, path TEXT, albumid INTEGER, "
                 "artistid INTEGER, title TEXT, artist TEXT, albumartist TEXT, album TEXT, "
-                "genre TEXT, year TEXT, hasspotify BOOLEAN)"
+                "genre TEXT, year TEXT, hasspotify BOOLEAN, hasmedia BOOLEAN, "
+                "haslyricstxt BOOLEAN, haslyricslrc BOOLEAN)"
             ))
             conn.execute(text(
                 "CREATE TABLE album (id INTEGER PRIMARY KEY, path TEXT, name TEXT, "
@@ -103,7 +106,7 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
                 text(
                     "INSERT INTO track VALUES "
                     "(1, '/music/Artist/Album/track.mp3', 1, 1, 'Track', 'Artist', "
-                    "'Artist', 'Album', 'Rock', :year, TRUE)"
+                    "'Artist', 'Album', 'Rock', :year, TRUE, TRUE, FALSE, TRUE)"
                 ),
                 {"year": year},
             )
@@ -119,6 +122,9 @@ def test_track_dataframe_conversion_accepts_text_year(year: str, expected_year: 
     assert track.albumid == 1
     assert track.path == "/music/Artist/Album/track.mp3"
     assert track.hasspotify is True
+    assert track.hasmedia is True
+    assert track.haslyricstxt is False
+    assert track.haslyricslrc is True
     assert track.album_path == "/music/Artist/Album"
     assert track.artist_path == "/music/Artist"
     assert track.genre == "Rock"

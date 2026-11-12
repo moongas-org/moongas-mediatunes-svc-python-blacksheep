@@ -115,14 +115,17 @@ contains that album's metadata in the same shape as `/api/album`
 (`id`, `path`, `name`, `year`, `explicitCover`); otherwise it is `null`. At most
 one album is looked up per request, so the tracks page does not need a separate
 `/api/album` call to decide whether to show cover art.
-Each file object also exposes the track table's `hasspotify` boolean.
+Each file object also exposes the track table's `hasspotify`, `hasmedia`,
+`haslyricstxt`, and `haslyricslrc` booleans.
 
 `GET /api/tracks`, `/api/album`, and `/api/random-track` accept
-`hasspotify=true` or `hasspotify=false` to filter by the track table's Spotify
-flag. Values `1` and `0` are also accepted (case-insensitive); omitting the
+`hasspotify`, `hasmedia`, `haslyricstxt`, and `haslyricslrc` with `true` or `false`
+to filter by Spotify availability, local media, plain-text lyrics, and LRC lyrics,
+respectively. Values `1` and `0` are also accepted (case-insensitive); omitting the
 argument includes either value, and invalid or empty values return HTTP 400.
 The filter combines with other track filters and is applied before `maxResults`
-or random selection. For example: `/api/tracks?hasspotify=true&genre=Rock`.
+or random selection. Multiple flags must all match.
+For example: `/api/tracks?hasmedia=true&haslyricslrc=true&genre=Rock`.
 
 The `/api/albums`, `/api/album`, `/api/tracks`, and `/api/random-track` endpoints
 accept `explicitCover=true` or
@@ -134,7 +137,7 @@ this filter before selecting a random track. With an explicit-cover filter,
 tracks without matching album metadata are excluded; without the filter, their
 existing behavior is unchanged. No matching random-track candidates returns HTTP 404.
 
-The service requires `mediascan>=1.2.8` and ID-based relationships:
+The service requires `mediascan>=1.2.9` and ID-based relationships:
 `track.artistid` references `artist.id`, and `track.albumid` references `album.id`.
 When an `album` table is present, `album.artistid` references `artist.id`.
 The joined data is loaded through `mediascan.utils.db.mediascan_db_loader`;

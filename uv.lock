@@ -448,8 +448,8 @@ wheels = [
 
 [[package]]
 name = "mediascan"
-version = "1.2.8"
-source = { git = "https://github.com/moongas-org/moongas-mediascan-python.git#a3e00fbb44d164489eab2f96c93de3b377e88fdb" }
+version = "1.2.9"
+source = { git = "https://github.com/moongas-org/moongas-mediascan-python.git#0dd787269986df77d1054f88d8eadd4f3d8e2597" }
 dependencies = [
     { name = "dataclass-wizard", extra = ["yaml"] },
     { name = "pandas" },

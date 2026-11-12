@@ -9,6 +9,9 @@ class ArgType(StrEnum):
 class ArgTypeBoolean(ArgType):
     ExplicitCover = "explicitCover"
     HasSpotify = "hasspotify"
+    HasMedia = "hasmedia"
+    HasLyricsTxt = "haslyricstxt"
+    HasLyricsLrc = "haslyricslrc"
 
 
 class ArgTypeScalarInt(ArgType):
@@ -54,6 +57,9 @@ class ArgTypeUtil:
         return arg_type in (
             ArgTypes.Boolean.ExplicitCover,
             ArgTypes.Boolean.HasSpotify,
+            ArgTypes.Boolean.HasMedia,
+            ArgTypes.Boolean.HasLyricsTxt,
+            ArgTypes.Boolean.HasLyricsLrc,
             ArgTypes.Scalar.Int.MinYear,
             ArgTypes.Scalar.Int.MaxYear,
             ArgTypes.Scalar.Enum.Sort,

@@ -1,3 +1,5 @@
+import pytest
+
 from app.types.arg_types import ArgType, ArgTypeBoolean, ArgTypes, ArgTypeUtil
 
 
@@ -12,9 +14,18 @@ def test_explicit_cover_boolean_arg_type():
     assert not ArgTypeUtil.is_boolean(ArgTypes.Scalar.Int.MinYear)
 
 
-def test_hasspotify_boolean_arg_type():
-    assert ArgTypeBoolean("hasspotify") is ArgTypes.Boolean.HasSpotify
-    assert str(ArgTypes.Boolean.HasSpotify) == "hasspotify"
-    assert ArgTypeUtil.is_scalar(ArgTypes.Boolean.HasSpotify)
-    assert ArgTypeUtil.is_boolean(ArgTypes.Boolean.HasSpotify)
-    assert not ArgTypeUtil.is_integer(ArgTypes.Boolean.HasSpotify)
+@pytest.mark.parametrize(
+    "name, arg_type",
+    [
+        ("hasspotify", ArgTypes.Boolean.HasSpotify),
+        ("hasmedia", ArgTypes.Boolean.HasMedia),
+        ("haslyricstxt", ArgTypes.Boolean.HasLyricsTxt),
+        ("haslyricslrc", ArgTypes.Boolean.HasLyricsLrc),
+    ],
+)
+def test_track_boolean_arg_type(name: str, arg_type: ArgTypeBoolean):
+    assert ArgTypeBoolean(name) is arg_type
+    assert str(arg_type) == name
+    assert ArgTypeUtil.is_scalar(arg_type)
+    assert ArgTypeUtil.is_boolean(arg_type)
+    assert not ArgTypeUtil.is_integer(arg_type)

@@ -52,7 +52,10 @@ def db_file(tmp_path: Path) -> Path:
             album TEXT,
             genre TEXT,
             year TEXT,
-            hasspotify BOOLEAN
+            hasspotify BOOLEAN,
+            hasmedia BOOLEAN,
+            haslyricstxt BOOLEAN,
+            haslyricslrc BOOLEAN
         )
         """)
     conn.execute("""
@@ -110,9 +113,10 @@ def db_file(tmp_path: Path) -> Path:
         "VALUES ('/data/Music/A/Artist One', 'Artist One', 'US', 'US-AL', 'Huntsville', 'en')"
     )
     conn.execute(
-        "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year, hasspotify) "
+        "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year, "
+        "hasspotify, hasmedia, haslyricstxt, haslyricslrc) "
         "VALUES (1, '/data/Music/A/Artist One/Album [2000]/01 - Track 1.mp3', "
-        "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000', TRUE)"
+        "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000', TRUE, TRUE, FALSE, TRUE)"
     )
     conn.execute(
         "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
@@ -177,6 +181,9 @@ async def test_api_tracks(app: Application):
     assert data["files"][0]["title"] == "Track 1"
     assert data["files"][0]["genre"] == "Rock"
     assert data["files"][0]["hasspotify"] is True
+    assert data["files"][0]["hasmedia"] is True
+    assert data["files"][0]["haslyricstxt"] is False
+    assert data["files"][0]["haslyricslrc"] is True
     assert data["album"]["name"] == "Album Metadata Name"
 
 
@@ -190,26 +197,44 @@ async def test_api_tracks_filtered(app: Application):
 
 
 @pytest.mark.parametrize("value, expected_count", [("true", 1), ("1", 1), ("false", 0), ("0", 0)])
-async def test_api_tracks_hasspotify(app: Application, value: str, expected_count: int):
+@pytest.mark.parametrize("flag", ["hasspotify", "hasmedia", "haslyricstxt", "haslyricslrc"])
+async def test_api_tracks_boolean_flag(app: Application, flag: str, value: str, expected_count: int):
+    if flag == "haslyricstxt":
+        expected_count = 1 - expected_count
     client = TestClient(app)
-    response = await client.get("/api/tracks?hasspotify=" + value)
+    response = await client.get(f"/api/tracks?{flag}={value}")
     assert response.status == 200
     data = await response.json()
     assert len(data["files"]) == expected_count
     if expected_count:
-        assert data["files"][0]["hasspotify"] is True
+        assert data["files"][0][flag] is (flag != "haslyricstxt")
     else:
         assert data["album"] is None
 
-    response = await client.get("/api/random-track?hasspotify=" + value)
+    response = await client.get(f"/api/album?{flag}={value}")
+    assert response.status == (200 if expected_count else 404)
+
+    response = await client.get(f"/api/random-track?{flag}={value}")
     assert response.status == (200 if expected_count else 404)
 
 
-@pytest.mark.parametrize("endpoint", ["tracks", "random-track"])
+@pytest.mark.parametrize("endpoint", ["tracks", "album", "random-track"])
+@pytest.mark.parametrize("flag", ["hasspotify", "hasmedia", "haslyricstxt", "haslyricslrc"])
 @pytest.mark.parametrize("value", ["", "yes"])
-async def test_api_invalid_hasspotify(app: Application, endpoint: str, value: str):
-    response = await TestClient(app).get(f"/api/{endpoint}?hasspotify={value}")
+async def test_api_invalid_track_flag(app: Application, endpoint: str, flag: str, value: str):
+    response = await TestClient(app).get(f"/api/{endpoint}?{flag}={value}")
     assert response.status == 400
+
+
+@pytest.mark.parametrize("has_lyrics_lrc, expected_count", [("true", 1), ("false", 0)])
+async def test_api_combined_track_flags(app: Application, has_lyrics_lrc: str, expected_count: int):
+    query = f"hasspotify=true&hasmedia=true&haslyricstxt=false&haslyricslrc={has_lyrics_lrc}&genre=Rock"
+    client = TestClient(app)
+    response = await client.get("/api/tracks?" + query)
+    assert response.status == 200
+    assert len((await response.json())["files"]) == expected_count
+    response = await client.get("/api/random-track?" + query)
+    assert response.status == (200 if expected_count else 404)
 
 
 async def test_api_relations_use_ids_after_paths_change(db_file: Path):
@@ -378,18 +403,19 @@ async def test_api_tracks_max_results_after_sorting(multi_album_app: Application
 
 @pytest.mark.parametrize(
     "query, expected_title",
-    [("hasspotify=true", "Track 1"), ("hasspotify=false", "Other Track"), ("", "Other Track")],
+    [("{flag}=true", "Track 1"), ("{flag}=false", "Other Track"), ("", "Other Track")],
 )
-async def test_api_tracks_hasspotify_before_limit(
-    multi_album_app: Application, query: str, expected_title: str
+@pytest.mark.parametrize("flag", ["hasspotify", "hasmedia", "haslyricstxt", "haslyricslrc"])
+async def test_api_tracks_boolean_flag_before_limit(
+    multi_album_app: Application, flag: str, query: str, expected_title: str
 ):
     tracks = get_mediascan_db_tracks_album_artist_joined(multi_album_app)
-    tracks["hasspotify"] = tracks["title"] == "Track 1"
+    tracks[flag] = tracks["title"] == "Track 1"
     tracks["track_year"] = tracks["title"].map(
         {"Track 1": "1990", "Other Track": "2010", "Second Track": "2000"}
     )
     get_config(multi_album_app).max_results = 1
-    response = await TestClient(multi_album_app).get("/api/tracks?sort=year&" + query)
+    response = await TestClient(multi_album_app).get("/api/tracks?sort=year&" + query.format(flag=flag))
     assert response.status == 200
     assert [track["title"] for track in (await response.json())["files"]] == [expected_title]
 
