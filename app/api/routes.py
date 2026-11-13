@@ -28,6 +28,7 @@ from app.utils.app_utils import (
 )
 from app.utils.mediascan_db.albums import get_album, get_albums
 from app.utils.mediascan_db.artists import (
+    LanguageNames,
     get_artist,
     get_country_code_name_map,
     get_language_code_name_map,
@@ -100,6 +101,7 @@ def _artist_geo_counts(app: Application, kind: str) -> List[Dict[str, Any]]:
         city = str(row.city)
         lc = str(row.languagecode)
         criteria: Dict[str, str] = {}
+        value: str | LanguageNames
         if kind == "countries":
             name = "Country"
             if cc not in country_map:
@@ -135,7 +137,8 @@ def _artist_geo_counts(app: Application, kind: str) -> List[Dict[str, Any]]:
         else:
             raise NotFound()
 
-        uniq_key = f"{value}|{sorted(criteria.items())}"
+        display_key = value["nameEn"] if isinstance(value, dict) else value
+        uniq_key = f"{display_key}|{sorted(criteria.items())}"
         if uniq_key in counts:
             counts[uniq_key][2] += 1
         else:

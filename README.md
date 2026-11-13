@@ -61,6 +61,15 @@ python run.py mediatunes-config.yml
 
 The web UI single-page application (Vue 3 + TypeScript, built with Vite) has moved to a separate repo. It consumes this backend's JSON API (`app/api/` — `/api/config`, `/api/albums`, `/api/album`, `/api/tracks`, `/api/artists`, `/api/artist`, `/api/genres`, `/api/artist-geo/<kind>`, `/api/wordcloud/*`, `/api/random-track`) and the media files via `/getfile/*`.
 
+When `serverConfig.staticUrlPath` is `/static`, `GET /static/json_data/language_code_name_map.json`
+returns language codes mapped to objects with a native `name` and an English `nameEn`,
+for example `"ja": {"name": "日本語", "nameEn": "Japanese"}`. This replaces
+the previous string-valued map. The `/api/artist-geo/languages` endpoint also
+returns this object in each item's `value` instead of an English string; the
+other artist-geo endpoints retain string values. Native names are based on the
+[iso-639-1 dataset](https://github.com/meikidd/iso-639-1); its license is included
+in `app/static/json_data/iso-639-1-LICENSE.txt`.
+
 ### Media streaming and seeking
 
 `GET /getfile/<path>` advertises `Accept-Ranges: bytes` and supports single

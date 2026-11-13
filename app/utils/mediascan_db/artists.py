@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, TypedDict, cast
 
 import pandas as pd
 from blacksheep import Application
@@ -9,6 +9,11 @@ from blacksheep import Application
 from app.types.arg_types import ArgsDict, ArgType, ArgTypes, ArgValueListStr, args_dict_to_str
 from app.utils.app_utils import get_state
 from app.utils.string_utils import any_substr_in_str_ignore_case
+
+
+class LanguageNames(TypedDict):
+    name: str
+    nameEn: str
 
 
 def filter_artists(
@@ -50,7 +55,7 @@ def filter_artists(
 def get_static_json_data(app: Application, filename: str) -> Dict[str, Any]:
     full_path = os.path.join(get_state(app).static_folder, "json_data", filename)
     try:
-        with open(full_path, "r") as json_file:
+        with open(full_path, "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
             if isinstance(data, dict):
                 return cast(Dict[str, Any], data)
@@ -69,7 +74,7 @@ def get_region_code_name_map(app: Application) -> Dict[str, str]:
     return get_static_json_data(app, "region_code_name_map.json")
 
 
-def get_language_code_name_map(app: Application) -> Dict[str, str]:
+def get_language_code_name_map(app: Application) -> Dict[str, LanguageNames]:
     return get_static_json_data(app, "language_code_name_map.json")
 
 

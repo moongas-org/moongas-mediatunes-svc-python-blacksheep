@@ -890,6 +890,12 @@ async def test_api_artist_geo(app: Application):
     assert data["items"][0]["criteria"] == {"countryCode": "US"}
     assert data["items"][0]["count"] == 1
 
+    resp = await client.get("/api/artist-geo/regions")
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["items"][0]["value"] == "Alabama"
+    assert data["items"][0]["criteria"] == {"regionCode": "US-AL"}
+
     resp = await client.get("/api/artist-geo/cities")
     assert resp.status == 200
     data = await resp.json()
@@ -898,6 +904,75 @@ async def test_api_artist_geo(app: Application):
 
     resp = await client.get("/api/artist-geo/bogus")
     assert resp.status == 404
+
+
+async def test_language_map_and_artist_geo(db_file: Path):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute(
+            "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
+            "VALUES ('/data/Music/Spanish', 'Spanish Artist', 'ES', '', '', 'es')"
+        )
+        conn.executemany(
+            "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
+            "VALUES (?, ?, 'FR', '', '', 'fr')",
+            [
+                ("/data/Music/French One", "French Artist One"),
+                ("/data/Music/French Two", "French Artist Two"),
+            ],
+        )
+
+    config = MediatunesServiceConfig(
+        mediascan_database_file_path=f"sqlite:///{db_file}",
+        server_config=ServerConfig(url_prefix="/api", static_url_path="/static"),
+    )
+    application = create_app(config)
+    await application.start()
+    client = TestClient(application)
+
+    resp = await client.get("/static/json_data/language_code_name_map.json")
+    assert resp.status == 200
+    languages = await resp.json()
+    assert len(languages) == 183
+    assert all(
+        len(code) == 2
+        and set(names) == {"name", "nameEn"}
+        and all(isinstance(value, str) and value for value in names.values())
+        for code, names in languages.items()
+    )
+    assert languages["en"] == {"name": "English", "nameEn": "English"}
+    assert languages["es"] == {"name": "Español", "nameEn": "Spanish"}
+    assert languages["ja"] == {"name": "日本語", "nameEn": "Japanese"}
+    assert languages["gn"] == {"name": "Avañe'ẽ", "nameEn": "Guarani"}
+
+    resp = await client.get("/api/artist-geo/languages")
+    assert resp.status == 200
+    items = (await resp.json())["items"]
+    assert items[0] == {
+        "name": "Language",
+        "value": {"name": "Français", "nameEn": "French"},
+        "criteria": {"languageCode": "fr"},
+        "count": 2,
+    }
+    assert {item["criteria"]["languageCode"]: item for item in items} == {
+        "en": {
+            "name": "Language",
+            "value": {"name": "English", "nameEn": "English"},
+            "criteria": {"languageCode": "en"},
+            "count": 1,
+        },
+        "es": {
+            "name": "Language",
+            "value": {"name": "Español", "nameEn": "Spanish"},
+            "criteria": {"languageCode": "es"},
+            "count": 1,
+        },
+        "fr": {
+            "name": "Language",
+            "value": {"name": "Français", "nameEn": "French"},
+            "criteria": {"languageCode": "fr"},
+            "count": 2,
+        },
+    }
 
 
 async def test_api_wordcloud(app: Application):
