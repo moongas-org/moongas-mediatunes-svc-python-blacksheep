@@ -931,6 +931,7 @@ async def test_language_map_and_artist_geo(db_file: Path):
 
     resp = await client.get("/static/json_data/language_code_name_map.json")
     assert resp.status == 200
+    assert resp.get_first_header(b"content-type") == b"application/json"
     languages = await resp.json()
     assert len(languages) == 183
     assert all(

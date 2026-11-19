@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from blacksheep import Application
+from blacksheep.server.files import get_default_extensions
 from rodi import Container
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import SQLAlchemyError
@@ -178,6 +179,10 @@ def create_app(config: MediatunesServiceConfig) -> Application:
     register_routes(app, url_prefix)
 
     if static_url_path:
-        app.serve_files(static_folder, root_path=static_url_path)
+        app.serve_files(
+            static_folder,
+            root_path=static_url_path,
+            extensions=get_default_extensions() | {".json"},
+        )
 
     return app
