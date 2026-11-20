@@ -114,6 +114,14 @@ and is empty when that relationship is missing.
 Cover paths come from the album directory and respect the configured cover root.
 Sorting and the album-cover result limit continue to apply.
 
+`GET /api/albums` accepts `hascover=true` or `hascover=false` to filter by the
+album table's `hascover` flag. Values `1` and `0` are also accepted, and
+`true`/`false` are case-insensitive. Omitting the filter includes either value;
+invalid or empty values return HTTP 400. Albums with a null flag match neither
+value. The filter combines with other album filters before sorting and limiting.
+Older databases without `hascover` remain usable without this filter; rescan
+the library with a scanner that supplies the column to use it.
+
 `GET /api/tracks` applies `maxResults` after filtering and sorting, including
 requests filtered by artist or album. Zero or negative values mean unlimited
 results, as with `maxResultsAlbumCovers`. This limit does not restrict the

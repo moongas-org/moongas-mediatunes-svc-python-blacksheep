@@ -65,6 +65,7 @@ def db_file(tmp_path: Path) -> Path:
             name TEXT,
             year INTEGER,
             explicitcover BOOLEAN,
+            hascover BOOLEAN,
             genre TEXT,
             artistid INTEGER
         )
@@ -119,8 +120,8 @@ def db_file(tmp_path: Path) -> Path:
         "1, 1, 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000', TRUE, TRUE, FALSE, TRUE)"
     )
     conn.execute(
-        "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
-        "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1, 'Rock', 1)"
+        "INSERT INTO album (path, name, year, explicitcover, hascover, genre, artistid) "
+        "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1, 1, 'Rock', 1)"
     )
     conn.execute(
         "INSERT INTO mediafile (id, trackid, path, size) "
@@ -625,6 +626,14 @@ async def test_api_trackstreaming_requires_integer_track_id(app: Application, qu
         ("explicitCover=false", 0),
         ("explicitCover=FALSE", 0),
         ("explicitCover=0", 0),
+        ("hascover=true", 1),
+        ("hascover=TRUE", 1),
+        ("hascover=1", 1),
+        ("hascover=false", 0),
+        ("hascover=FALSE", 0),
+        ("hascover=0", 0),
+        ("hascover=true&explicitCover=true&genre=Rock", 1),
+        ("hascover=true&explicitCover=false", 0),
         ("album[]=album%20metadata%20name&year[]=2001", 1),
         ("album=Album", 1),
         ("album=metadata", 1),
@@ -671,6 +680,42 @@ async def test_api_albums_invalid_explicit_cover(app: Application, value: str):
 async def test_api_albums_bare_explicit_cover(app: Application):
     resp = await TestClient(app).get("/api/albums?explicitCover")
     assert resp.status == 400
+
+
+@pytest.mark.parametrize("value", ["yes", "2", "", "not-a-bool"])
+async def test_api_albums_invalid_hascover(app: Application, value: str):
+    resp = await TestClient(app).get("/api/albums?hascover=" + value)
+    assert resp.status == 400
+
+
+async def test_api_albums_bare_hascover(app: Application):
+    resp = await TestClient(app).get("/api/albums?hascover")
+    assert resp.status == 400
+
+
+async def test_api_albums_null_hascover(app: Application):
+    get_mediascan_db_albums(app)["hascover"] = None
+    client = TestClient(app)
+    assert len((await (await client.get("/api/albums")).json())["albums"]) == 1
+    for value in ("true", "false"):
+        response = await client.get("/api/albums?hascover=" + value)
+        assert response.status == 200
+        assert (await response.json())["albums"] == []
+
+
+async def test_api_albums_without_hascover_column(db_file: Path):
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("ALTER TABLE album DROP COLUMN hascover")
+    application = create_app(
+        MediatunesServiceConfig(
+            mediascan_database_file_path=f"sqlite:///{db_file}",
+            server_config=ServerConfig(url_prefix="/api"),
+        )
+    )
+    await application.start()
+    response = await TestClient(application).get("/api/albums")
+    assert response.status == 200
+    assert len((await response.json())["albums"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -769,8 +814,8 @@ async def multi_album_app(db_file: Path) -> Application:
     with sqlite3.connect(db_file) as conn:
         # Duplicate names/years must not collapse distinct album paths.
         conn.execute(
-            "INSERT INTO album (path, name, year, explicitcover, artistid) "
-            "VALUES ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0, 1)"
+            "INSERT INTO album (path, name, year, explicitcover, hascover, artistid) "
+            "VALUES ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0, 0, 1)"
         )
         conn.execute(
             "INSERT INTO track (path, albumid, artistid, title, artist, albumartist, album, genre, year) "
@@ -785,8 +830,8 @@ async def multi_album_app(db_file: Path) -> Application:
             "'Second Track', 'Guest Artist', 'Artist One', 'Album', 'Jazz', '2000')"
         )
         conn.execute(
-            "INSERT INTO album (path, name, year, explicitcover, artistid) "
-            "VALUES ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0, NULL)"
+            "INSERT INTO album (path, name, year, explicitcover, hascover, artistid) "
+            "VALUES ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0, 1, NULL)"
         )
     application = create_app(
         MediatunesServiceConfig(
@@ -814,6 +859,20 @@ async def test_api_albums_distinct_paths_and_no_tracks(multi_album_app: Applicat
     resp = await client.get("/api/albums?artist=Guest%20Artist&genre=Rock")
     assert resp.status == 200
     assert (await resp.json())["albums"] == []
+
+
+async def test_api_albums_hascover_filter_before_limit(multi_album_app: Application):
+    get_config(multi_album_app).max_results_album_covers = 1
+    client = TestClient(multi_album_app)
+    response = await client.get("/api/albums?hascover=false&sort=year")
+    assert response.status == 200
+    albums = (await response.json())["albums"]
+    assert len(albums) == 1
+    assert "/Other [2000]/" in albums[0]["coverPath"]
+
+    get_config(multi_album_app).max_results_album_covers = 0
+    response = await client.get("/api/albums?hascover=true&explicitCover=false")
+    assert [album["album"] for album in (await response.json())["albums"]] == ["Standalone"]
 
 
 @pytest.mark.parametrize("sort", ["artist", "album", "year", "random"])

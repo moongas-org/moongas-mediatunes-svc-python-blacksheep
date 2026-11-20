@@ -8,6 +8,7 @@ class ArgType(StrEnum):
 
 class ArgTypeBoolean(ArgType):
     ExplicitCover = "explicitCover"
+    HasCover = "hascover"
     HasSpotify = "hasspotify"
     HasMedia = "hasmedia"
     HasLyricsTxt = "haslyricstxt"
@@ -56,6 +57,7 @@ class ArgTypeUtil:
     def is_scalar(cls, arg_type: ArgType) -> bool:
         return arg_type in (
             ArgTypes.Boolean.ExplicitCover,
+            ArgTypes.Boolean.HasCover,
             ArgTypes.Boolean.HasSpotify,
             ArgTypes.Boolean.HasMedia,
             ArgTypes.Boolean.HasLyricsTxt,

@@ -76,6 +76,14 @@ def filter_albums(app: Application, albums: pd.DataFrame, args: ArgsDict) -> pd.
         explicit_cover = cast(bool, args[ArgTypes.Boolean.ExplicitCover])
         cover_column = _album_column(filtered, "explicitcover")
         filtered = filtered[filtered[cover_column] == explicit_cover]
+    if ArgTypes.Boolean.HasCover in args and not filtered.empty:
+        has_cover = cast(bool, args[ArgTypes.Boolean.HasCover])
+        cover_column = _album_column(filtered, "hascover")
+        if cover_column not in filtered:
+            message = "Album table is missing the hascover column; rescan the library to use the hascover filter."
+            app.logger.error(message)
+            raise ValueError(message)
+        filtered = filtered[filtered[cover_column] == has_cover]
     return filtered
 
 

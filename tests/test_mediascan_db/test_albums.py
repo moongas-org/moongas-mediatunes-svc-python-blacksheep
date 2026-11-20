@@ -85,3 +85,24 @@ def test_get_albums_returns_empty_for_empty_dataframe(
     _patch_config(monkeypatch, app, config)
 
     assert albums_module.get_albums(app, pd.DataFrame(), {}) == []
+
+
+@pytest.mark.parametrize("column", ["hascover", "album_hascover"])
+@pytest.mark.parametrize("value, expected", [(True, [1]), (False, [2])])
+def test_filter_albums_hascover(
+    column: str, value: bool, expected: list[int]
+):
+    albums = pd.DataFrame({"id": [1, 2, 3], column: [1, 0, None]})
+    result = albums_module.filter_albums(
+        Application(router=Router()), albums, {ArgTypes.Boolean.HasCover: value}
+    )
+    assert result["id"].tolist() == expected
+
+
+def test_filter_albums_missing_hascover_column(caplog: pytest.LogCaptureFixture):
+    app = Application(router=Router())
+    albums = pd.DataFrame({"id": [1]})
+    assert albums_module.filter_albums(app, albums, {}).equals(albums)
+    with pytest.raises(ValueError, match="missing the hascover column"):
+        albums_module.filter_albums(app, albums, {ArgTypes.Boolean.HasCover: True})
+    assert "missing the hascover column" in caplog.text

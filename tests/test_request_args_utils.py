@@ -32,6 +32,22 @@ def test_invalid_explicit_cover(query: str):
     "value, expected",
     [("true", True), ("TRUE", True), ("1", True), ("false", False), ("FaLsE", False), ("0", False)],
 )
+def test_hascover_is_boolean(value: str, expected: bool):
+    request = Request("GET", f"/albums?hascover={value}".encode(), [])
+    assert get_request_args(request)[ArgTypes.Boolean.HasCover] is expected
+
+
+@pytest.mark.parametrize("query", ["?hascover=", "?hascover", "?hascover=yes"])
+def test_invalid_hascover(query: str):
+    request = Request("GET", ("/albums" + query).encode(), [])
+    with pytest.raises(BadRequest, match="expected true, false, 1, or 0"):
+        get_request_args(request)
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [("true", True), ("TRUE", True), ("1", True), ("false", False), ("FaLsE", False), ("0", False)],
+)
 @pytest.mark.parametrize("flag", ["hasspotify", "hasmedia", "haslyricstxt", "haslyricslrc"])
 def test_track_flag_is_boolean(flag: str, value: str, expected: bool):
     request = Request("GET", f"/tracks?{flag}={value}".encode(), [])

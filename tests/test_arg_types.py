@@ -17,6 +17,7 @@ def test_explicit_cover_boolean_arg_type():
 @pytest.mark.parametrize(
     "name, arg_type",
     [
+        ("hascover", ArgTypes.Boolean.HasCover),
         ("hasspotify", ArgTypes.Boolean.HasSpotify),
         ("hasmedia", ArgTypes.Boolean.HasMedia),
         ("haslyricstxt", ArgTypes.Boolean.HasLyricsTxt),

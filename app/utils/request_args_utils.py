@@ -15,6 +15,7 @@ from app.types.arg_types import (
 
 REQUEST_ARG_TYPES: List[ArgType] = [
     ArgTypes.Boolean.ExplicitCover,
+    ArgTypes.Boolean.HasCover,
     ArgTypes.Boolean.HasSpotify,
     ArgTypes.Boolean.HasMedia,
     ArgTypes.Boolean.HasLyricsTxt,
